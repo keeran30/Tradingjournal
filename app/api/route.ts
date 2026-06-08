@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aiRateLimiter } from "@/lib/rate-limit";
+import { aiRateLimiter } from "../../lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  // ------------------------------------------------
-  // 1. Check API key
-  // ------------------------------------------------
+  // Check API key
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -13,29 +11,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ------------------------------------------------
-  // 2. Rate limiting (10 requests per minute per IP)
-  // ------------------------------------------------
+  // Rate limiting
   const ip = req.headers.get("x-forwarded-for") ?? "anonymous";
-  const { success, limit, reset, remaining } = await aiRateLimiter.limit(ip);
+  const { success } = await aiRateLimiter.limit(ip);
 
   if (!success) {
     return NextResponse.json(
       { success: false, error: "Too many requests. Please wait a minute." },
-      {
-        status: 429,
-        headers: {
-          "X-RateLimit-Limit": limit.toString(),
-          "X-RateLimit-Remaining": remaining.toString(),
-          "X-RateLimit-Reset": reset.toString(),
-        },
-      }
+      { status: 429 }
     );
   }
 
-  // ------------------------------------------------
-  // 3. Process the user message
-  // ------------------------------------------------
+  // Process message
   try {
     const { message } = await req.json();
     if (!message) {
@@ -45,7 +32,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ---------- Groq API call ----------
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -89,7 +75,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Health check endpoint
 export async function GET() {
   return NextResponse.json({ success: true, message: "AI API is running" });
 }
