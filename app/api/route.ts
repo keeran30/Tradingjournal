@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   // ------------------------------------------------
   // 1. Check API key
   // ------------------------------------------------
-  const apiKey = process.env.GROQ_API_KEY; // change to GEMINI_API_KEY if needed
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { success: false, error: "AI service not configured" },
@@ -45,15 +45,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ---------- DeepSeek API call ----------
-    const response = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    // ---------- Groq API call ----------
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI provider error:", response.status, errorText);
+      console.error("Groq error:", response.status, errorText);
       return NextResponse.json(
         { success: false, error: "AI service temporarily unavailable" },
         { status: 502 }
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content ?? "I’m not sure how to respond to that.";
+    const reply = data.choices?.[0]?.message?.content ?? "I'm not sure how to respond to that.";
 
     return NextResponse.json({ success: true, response: reply });
   } catch (error: any) {
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Optional: keep a health check endpoint
+// Health check endpoint
 export async function GET() {
   return NextResponse.json({ success: true, message: "AI API is running" });
 }
