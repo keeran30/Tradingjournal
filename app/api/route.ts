@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aiRateLimiter } from "../../lib/rate-limit";
+import { aiRateLimiter } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   // Check API key
