@@ -21,6 +21,15 @@ interface Trade {
   created_at: string
 }
 
+interface SearchResult {
+  symbol: string
+  name: string
+  exchange: string
+  type: string
+  price: number | null
+  change: number | null
+}
+
 interface AnalyticsData {
   totalTrades: number
   summary: {
@@ -53,7 +62,7 @@ interface AnalyticsData {
 export default function TradesPage() {
   // Asset search states
   const [search, setSearch] = useState("")
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
 
@@ -410,46 +419,100 @@ export default function TradesPage() {
 
             {/* SEARCH INPUT */}
             {!selectedAsset && (
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search TSLA, XAUUSD, BTCUSD..."
-                className="w-full p-4 bg-zinc-900 border border-zinc-700 rounded-xl focus:border-yellow-500 outline-none transition"
-              />
+              <div className="relative">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search TSLA, XAUUSD, BTCUSD..."
+                  className="w-full p-4 pl-12 bg-zinc-900 border border-zinc-700 rounded-xl focus:border-yellow-500 outline-none transition text-lg"
+                />
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xl">🔍</span>
+              </div>
             )}
 
-            {/* SEARCH RESULTS */}
-            {!selectedAsset && (
-              <div className="mt-4 space-y-3">
-                {loading && <p className="text-zinc-400 text-center py-4">Searching...</p>}
-                
-                {!loading && results && results.length === 0 && search.length > 0 && (
-                  <p className="text-zinc-500 text-center py-4">No assets found. Try a different symbol or add manually below.</p>
-                )}
-                
-                {!loading && results && results.length > 0 && (
-                  <>
-                    {results.map((item, index) => (
-                      <div
-                        key={`${item.symbol}-${index}`}
-                        onClick={() => {
-                          setSelectedAsset(item.symbol)
-                          setSearch("")
-                          setResults([])
-                        }}
-                        className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl cursor-pointer hover:bg-zinc-800 hover:border-yellow-500/50 transition"
-                      >
-                        <b className="text-yellow-400">{item.symbol}</b>
-                        <p className="text-sm text-zinc-400">{item.description || item.name || ""}</p>
+            {/* SEARCH RESULTS - TradingView Style */}
+            {!selectedAsset && !loading && results && results.length > 0 && (
+              <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden">
+                <div className="p-3 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider flex justify-between">
+                  <span>Search Results ({results.length})</span>
+                  <span className="text-zinc-600">Click to select</span>
+                </div>
+                {results.map((item, index) => (
+                  <div
+                    key={`${item.symbol}-${index}`}
+                    onClick={() => {
+                      setSelectedAsset(item.symbol)
+                      setSearch("")
+                      setResults([])
+                    }}
+                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-b-0"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                        item.type === "crypto" ? "bg-orange-900/30 text-orange-400" :
+                        item.type === "forex" ? "bg-blue-900/30 text-blue-400" :
+                        "bg-green-900/30 text-green-400"
+                      }`}>
+                        {item.symbol.charAt(0)}
                       </div>
-                    ))}
-                  </>
-                )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <b className="text-white">{item.symbol}</b>
+                          <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                            {item.exchange}
+                          </span>
+                        </div>
+                        <p className="text-sm text-zinc-400">{item.name}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      {item.price && (
+                        <p className="text-white font-semibold">${item.price.toFixed(2)}</p>
+                      )}
+                      {item.change !== null && item.change !== undefined && (
+                        <p className={`text-sm ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
+                          {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%
+                        </p>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        item.type === "stock" ? "bg-green-900/50 text-green-400" :
+                        item.type === "forex" ? "bg-blue-900/50 text-blue-400" :
+                        item.type === "crypto" ? "bg-orange-900/50 text-orange-400" :
+                        "bg-zinc-800 text-zinc-400"
+                      }`}>
+                        {item.type?.toUpperCase() || "ASSET"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Loading State */}
+            {loading && (
+              <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
+                <div className="animate-spin text-3xl mb-3">🔍</div>
+                <p className="text-zinc-400">Searching global markets...</p>
+              </div>
+            )}
+
+            {/* No Results State */}
+            {!loading && results && results.length === 0 && search.length > 0 && (
+              <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
+                <p className="text-4xl mb-3">🔍</p>
+                <p className="text-zinc-400 mb-2">No assets found for "<b className="text-white">{search}</b>"</p>
+                <p className="text-sm text-zinc-500 mb-3">Try a different symbol or</p>
+                <button
+                  onClick={() => setShowCustomModal(true)}
+                  className="text-blue-400 hover:text-blue-300 text-sm transition"
+                >
+                  + Add it manually
+                </button>
               </div>
             )}
 
             {/* ADD CUSTOM ASSET BUTTON */}
-            {!selectedAsset && (
+            {!selectedAsset && search.length === 0 && (
               <div className="mt-4">
                 <button
                   onClick={() => setShowCustomModal(true)}
