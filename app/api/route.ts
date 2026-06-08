@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { aiRateLimiter } from "../lib/rate/rate-limit";
 
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GROQ_API_KEY;
@@ -7,15 +6,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "AI service not configured" },
       { status: 500 }
-    );
-  }
-
-  const ip = req.headers.get("x-forwarded-for") ?? "anonymous";
-  const { success } = await aiRateLimiter.limit(ip);
-  if (!success) {
-    return NextResponse.json(
-      { success: false, error: "Too many requests. Please wait a minute." },
-      { status: 429 }
     );
   }
 
