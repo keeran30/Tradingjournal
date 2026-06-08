@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   // ------------------------------------------------
   // 1. Check API key
   // ------------------------------------------------
-  const apiKey = process.env.DEEPSEEK_API_KEY; // change to GEMINI_API_KEY if needed
+  const apiKey = process.env.GROQ_API_KEY; // change to GEMINI_API_KEY if needed
   if (!apiKey) {
     return NextResponse.json(
       { success: false, error: "AI service not configured" },
