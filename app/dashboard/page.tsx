@@ -1,9 +1,21 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
-import AIAssistant from "../components/AIAssistant";
+import dynamic from "next/dynamic";
+
+// Dynamically import AIAssistant to avoid SSR issues
+const AIAssistant = dynamic(() => import("../components/AIAssistant"), {
+  ssr: false,
+});
 
 export default function DashboardPage() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
       <Sidebar />
@@ -29,10 +41,10 @@ export default function DashboardPage() {
             <p className="text-4xl font-bold text-yellow-400">0</p>
           </div>
         </div>
-      </section>
 
-      {/* Floating AI button - appears on all pages */}
-      <AIAssistant />
+        {/* Only render AI chat after page is mounted */}
+        {mounted && <AIAssistant />}
+      </section>
     </main>
   );
 }
