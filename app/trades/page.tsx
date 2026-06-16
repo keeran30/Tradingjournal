@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar"
 import { supabase } from "../lib/supabase"
 import { addCustomAsset } from "../data/assets"
 import AIAssistant from "../components/AIAssistant"
+import AppLoader from "../components/AppLoader";
 
 // Types
 interface Trade {
