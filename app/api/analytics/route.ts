@@ -5,11 +5,7 @@ export async function GET(request: Request) {
   const userId = url.searchParams.get("userId")
   
   if (!userId) {
-    return NextResponse.json({ 
-      success: false, 
-      totalTrades: 0, 
-      message: "No userId provided" 
-    })
+    return NextResponse.json({ success: false, totalTrades: 0, message: "No userId provided" })
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
@@ -27,7 +23,7 @@ export async function GET(request: Request) {
     })
     
     const data = await res.json()
-    const trades = Array.isArray(data) ? data : []
+    const trades: any[] = Array.isArray(data) ? data : []
 
     if (trades.length === 0) {
       return NextResponse.json({
@@ -39,8 +35,8 @@ export async function GET(request: Request) {
 
     const now = new Date()
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    const thisWeek = trades.filter((t: any) => new Date(t.created_at) >= weekAgo)
-    const sorted = [...trades].sort((a: any, b: any) => 
+    const thisWeek: any[] = trades.filter((t: any) => new Date(t.created_at) >= weekAgo)
+    const sorted: any[] = [...trades].sort((a: any, b: any) => 
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
 
@@ -48,14 +44,14 @@ export async function GET(request: Request) {
     const posEmotions = ["Calm","Confident","Focused","Patient","Disciplined","Prepared","Mindful"]
     const negEmotions = ["Fearful","Anxious","Greedy","Stressed","Panicked","Revengeful","Desperate","Euphoric","Overconfident"]
 
-    const calcDiscipline = () => {
+    const calcDiscipline = (): number => {
       const withEmo = trades.filter((t: any) => t.emotion)
       if (withEmo.length === 0) return 50
       const pos = withEmo.filter((t: any) => posEmotions.some(e => (t.emotion || "").includes(e))).length
       return Math.round((pos / withEmo.length) * 100)
     }
 
-    const calcRisk = () => {
+    const calcRisk = (): number => {
       const wins = trades.filter((t: any) => t.pnl > 0)
       const losses = trades.filter((t: any) => t.pnl < 0)
       if (losses.length === 0) return 90
@@ -65,7 +61,7 @@ export async function GET(request: Request) {
       return Math.min(100, Math.round((avgW / avgL) * 30))
     }
 
-    const calcConsistency = () => {
+    const calcConsistency = (): number => {
       if (trades.length < 5) return 50
       const days = new Set(trades.map((t: any) => (t.created_at || "").split("T")[0])).size
       const avg = trades.length / Math.max(1, days)
@@ -74,14 +70,14 @@ export async function GET(request: Request) {
       return 60
     }
 
-    const calcEmotional = () => {
+    const calcEmotional = (): number => {
       const withEmo = trades.filter((t: any) => t.emotion)
       if (withEmo.length === 0) return 50
       const neg = withEmo.filter((t: any) => negEmotions.some(e => (t.emotion || "").includes(e))).length
       return Math.round(100 - (neg / withEmo.length) * 50)
     }
 
-    const calcExecution = () => {
+    const calcExecution = (): number => {
       const wins = trades.filter((t: any) => t.pnl > 0).length
       return Math.min(100, Math.round((wins / trades.length) * 100))
     }
@@ -94,7 +90,11 @@ export async function GET(request: Request) {
     const aiScore = Math.round((discipline + riskManagement + consistency + emotionalControl + executionQuality) / 5)
 
     // ─── LEAK TRACKER ──────────────────────────────────
-    const leaks: any[] = []
+    interface LeakItem {
+      type: string; label: string; icon: string
+      trades: number; cost: number; description: string; severity: string
+    }
+    const leaks: LeakItem[] = []
 
     // Revenge trading
     let revengeCount = 0, revengeCost = 0
@@ -166,7 +166,10 @@ export async function GET(request: Request) {
       assetMap[a].trades++
       if ((t.pnl || 0) > 0) assetMap[a].wins++
     })
-    const bestAssetEntry = Object.entries(assetMap).sort((a, b) => b[1].pnl - a[1].pnl)[0]
+    
+    const assetEntries: Array<[string, { pnl: number; trades: number; wins: number }]> = Object.entries(assetMap)
+    assetEntries.sort((a, b) => b[1].pnl - a[1].pnl)
+    const bestAssetEntry = assetEntries[0]
 
     // ─── DEAD ZONES ────────────────────────────────────
     const hourMap: Record<number, { pnl: number; trades: number }> = {}
@@ -186,6 +189,12 @@ export async function GET(request: Request) {
       })
 
     // ─── PRE-MARKET PROTOCOL ───────────────────────────
+    const preMarketRules: string[] = []
+    if (discipline < 50) preMarketRules.push("Cap position size at 50% of normal")
+    if (worstHours.length > 0) preMarketRules.push(`Avoid trading during ${worstHours[0]}`)
+    if (totalLeakCost > 0) preMarketRules.push(`Discipline leaks cost $${totalLeakCost.toFixed(2)} this week. Follow your plan.`)
+    if (bestAssetEntry) preMarketRules.push(`Prioritize ${bestAssetEntry[0]} setups — your highest probability trade`)
+
     const preMarketProtocol = {
       disciplineScore: discipline,
       maxPositionSize: discipline < 50 ? "Half your normal size" : "Normal size",
@@ -194,12 +203,7 @@ export async function GET(request: Request) {
         : "Insufficient data",
       deadZones: worstHours.length > 0 ? worstHours.join(" and ") : "No dead zones detected",
       restrictedAssets: leaks.filter(l => l.severity === "high").map(l => l.label).join(", ") || "None",
-      rules: [
-        discipline < 50 ? "Cap position size at 50% of normal" : null,
-        worstHours.length > 0 ? `Avoid trading during ${worstHours[0]}` : null,
-        totalLeakCost > 0 ? `Discipline leaks cost $${totalLeakCost.toFixed(2)} this week. Follow your plan.` : null,
-        bestAssetEntry ? `Prioritize ${bestAssetEntry[0]} setups — your highest probability trade` : null,
-      ].filter(Boolean) as string[],
+      rules: preMarketRules,
     }
 
     // ─── COACH SUMMARY ─────────────────────────────────
@@ -235,7 +239,6 @@ export async function GET(request: Request) {
     if (leaks.filter(l => l.severity === "high").length > 0) alerts.push({ type: "danger", message: `${leaks.filter(l => l.severity === "high").length} critical leak(s) detected. Review above.`, riskLevel: "Critical" })
 
     // ─── MOTIVATION ────────────────────────────────────
-    const totalPnL = trades.reduce((a: number, t: any) => a + (t.pnl || 0), 0)
     let motivation = ""
     if (aiScore >= 70) motivation = "🚀 Professional level. Plug those small leaks and you're golden."
     else if (aiScore >= 50) motivation = "📈 Solid foundation. Your ghost equity shows what's possible with discipline."
