@@ -2,24 +2,16 @@ import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    // Check all possible env var names
-    const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || ""
-    const priceId = process.env.STRIPE_PRICE_ID || process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || ""
+    const stripeKey = process.env.SECRET_KEY_STRIPE || process.env.RESTRICTED_KEY_STRIPE_PAYMENT || ""
+    const priceId = process.env.STRIPE_PAYMENT_PRODUCT_ID || ""
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tradingjournal-flax.vercel.app"
     
-    console.log("Stripe key exists:", !!stripeKey)
-    console.log("Price ID exists:", !!priceId)
-    
     if (!stripeKey) {
-      return NextResponse.json({ 
-        error: "Stripe key not found. Please add STRIPE_SECRET_KEY to Vercel environment variables." 
-      }, { status: 500 })
+      return NextResponse.json({ error: "Stripe key not found" }, { status: 500 })
     }
 
     if (!priceId) {
-      return NextResponse.json({ 
-        error: "Price ID not found. Please add STRIPE_PRICE_ID to Vercel environment variables." 
-      }, { status: 500 })
+      return NextResponse.json({ error: "Price ID not found" }, { status: 500 })
     }
 
     const { userId, email } = await request.json()
@@ -48,12 +40,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: session.url })
     }
     
-    return NextResponse.json({ 
-      error: session.error?.message || "Stripe session creation failed" 
-    }, { status: 500 })
+    return NextResponse.json({ error: session.error?.message || "Stripe error" }, { status: 500 })
     
   } catch (e: any) {
-    console.error("Checkout error:", e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
