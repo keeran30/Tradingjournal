@@ -12,108 +12,212 @@ export async function GET(request: Request) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 
   try {
-    const res = await fetch(
+    const response = await fetch(
       `${supabaseUrl}/rest/v1/trades?select=*&user_id=eq.${userId}&order=created_at.desc`,
       {
-        headers: { 
-          "apikey": serviceKey, 
-          "Authorization": `Bearer ${serviceKey}`, 
-          "Content-Type": "application/json" 
+        headers: {
+          "apikey": serviceKey,
+          "Authorization": `Bearer ${serviceKey}`,
+          "Content-Type": "application/json",
         },
       }
     )
     
-    const data = await res.json()
-    
-    // Handle both array and object responses
-    const trades = Array.isArray(data) ? data : (data.trades || data.data || [])
-    
+    const data = await response.json()
+    const trades = Array.isArray(data) ? data : []
+
     if (!trades || trades.length === 0) {
-      return NextResponse.json({ 
-        success: true, 
-        totalTrades: 0, 
-        message: "No trades yet. Start journaling to see insights!" 
+      return NextResponse.json({
+        success: true,
+        totalTrades: 0,
+        message: "No trades yet. Start journaling to unlock AI insights!",
       })
     }
 
-    // Calculate stats
-    let totalPnL = 0, wins = 0, losses = 0
-    const assetMap: Record<string, { pnl: number; trades: number; wins: number }> = {}
-    
-    for (const t of trades) {
-      const pnl = t.pnl || 0
-      totalPnL += pnl
-      if (pnl > 0) wins++
-      else if (pnl < 0) losses++
-      
-      const asset = t.asset || "Unknown"
-      if (!assetMap[asset]) assetMap[asset] = { pnl: 0, trades: 0, wins: 0 }
-      assetMap[asset].pnl += pnl
-      assetMap[asset].trades++
-      if (pnl > 0) assetMap[asset].wins++
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const recentTrades = trades.filter((t: any) => new Date(t.created_at) >= thirtyDaysAgo)
+    const oldTrades = trades.filter((t: any) => new Date(t.created_at) < thirtyDaysAgo)
+    const sortedTrades = [...trades].sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
+    // AI Trading Score
+    const positiveEmotions = ["Calm", "Confident", "Focused", "Patient", "Disciplined", "Prepared", "Mindful"]
+    const negativeEmotions = ["Fearful", "Anxious", "Greedy", "Stressed", "Panicked", "Revengeful", "Desperate", "Euphoric"]
+
+    const calcDiscipline = () => {
+      const withEmotion = trades.filter((t: any) => t.emotion)
+      if (withEmotion.length === 0) return 50
+      const pos = withEmotion.filter((t: any) => positiveEmotions.some(e => t.emotion?.includes(e))).length
+      return Math.round((pos / withEmotion.length) * 100)
     }
 
-    const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : "0"
-    const sortedAssets = Object.entries(assetMap).sort((a, b) => b[1].pnl - a[1].pnl)
-    
-    const suggestions: string[] = []
-    const wr = parseFloat(winRate)
-    if (wr > 60) suggestions.push(`Strong ${winRate}% win rate — focus on scaling up.`)
-    else if (wr > 45) suggestions.push(`${winRate}% win rate — work on risk-reward ratio.`)
-    else if (trades.length > 0) suggestions.push(`${winRate}% win rate — review your entry strategy.`)
+    const calcRisk = () => {
+      const wins = trades.filter((t: any) => t.pnl > 0)
+      const losses = trades.filter((t: any) => t.pnl < 0)
+      if (losses.length === 0) return 90
+      const avgW = wins.length > 0 ? wins.reduce((a: number, t: any) => a + t.pnl, 0) / wins.length : 0
+      const avgL = Math.abs(losses.reduce((a: number, t: any) => a + t.pnl, 0) / losses.length)
+      if (avgW === 0) return 30
+      return Math.min(100, Math.round((avgW / avgL) * 30))
+    }
 
-    if (totalPnL > 0) suggestions.push(`Total profit: +$${totalPnL.toFixed(2)} — keep doing what works!`)
-    else if (totalPnL < 0) suggestions.push(`Total loss: -$${Math.abs(totalPnL).toFixed(2)} — cut losers faster.`)
+    const calcConsistency = () => {
+      if (trades.length < 5) return 50
+      const daysCount = new Set(trades.map((t: any) => t.created_at?.split("T")[0])).size
+      const avg = trades.length / Math.max(1, daysCount)
+      if (avg > 5) return Math.max(20, 100 - (avg - 5) * 15)
+      if (avg >= 1 && avg <= 3) return 85
+      return 60
+    }
+
+    const calcEmotional = () => {
+      const withEmotion = trades.filter((t: any) => t.emotion)
+      if (withEmotion.length === 0) return 50
+      const neg = withEmotion.filter((t: any) => negativeEmotions.some(e => t.emotion?.includes(e))).length
+      return Math.round(100 - (neg / withEmotion.length) * 50)
+    }
+
+    const calcExecution = () => {
+      const wins = trades.filter((t: any) => t.pnl > 0).length
+      const wr = (wins / trades.length) * 100
+      return Math.min(100, Math.round(wr))
+    }
+
+    const discipline = calcDiscipline()
+    const riskManagement = calcRisk()
+    const consistency = calcConsistency()
+    const emotionalControl = calcEmotional()
+    const executionQuality = calcExecution()
+    const aiScore = Math.round((discipline + riskManagement + consistency + emotionalControl + executionQuality) / 5)
+
+    // Best conditions
+    const assetMap: Record<string, { trades: number; wins: number; pnl: number }> = {}
+    trades.forEach((t: any) => {
+      if (!assetMap[t.asset]) assetMap[t.asset] = { trades: 0, wins: 0, pnl: 0 }
+      assetMap[t.asset].trades++
+      if (t.pnl > 0) assetMap[t.asset].wins++
+      assetMap[t.asset].pnl += t.pnl || 0
+    })
+    const bestAsset = Object.entries(assetMap).sort((a, b) => b[1].pnl - a[1].pnl)[0]
+
+    // Emotion impact
+    const emMap: Record<string, { trades: number; wins: number; pnl: number }> = {}
+    trades.filter((t: any) => t.emotion).forEach((t: any) => {
+      if (!emMap[t.emotion]) emMap[t.emotion] = { trades: 0, wins: 0, pnl: 0 }
+      emMap[t.emotion].trades++
+      if (t.pnl > 0) emMap[t.emotion].wins++
+      emMap[t.emotion].pnl += t.pnl || 0
+    })
+
+    const emotionImpact = Object.entries(emMap)
+      .map(([emotion, d]) => ({
+        emotion,
+        trades: d.trades,
+        winRate: Math.round((d.wins / d.trades) * 100),
+        avgPnL: (d.pnl / d.trades).toFixed(2),
+        totalPnL: d.pnl.toFixed(2),
+      }))
+      .sort((a, b) => b.trades - a.trades)
+      .slice(0, 6)
+
+    // Killers
+    const killers: any[] = []
+    const revengeTrades = trades.filter((t: any) => t.emotion && (t.emotion.includes("Revengeful") || t.emotion.includes("Angry")))
+    if (revengeTrades.length > 0) {
+      killers.push({
+        name: "Revenge Trading",
+        cost: Math.abs(revengeTrades.reduce((a: number, t: any) => a + (t.pnl || 0), 0)).toFixed(2),
+        trades: revengeTrades.length,
+        recommendation: "Stop trading for 30 minutes after any loss.",
+      })
+    }
+
+    // Momentum
+    const momentum = {
+      executionQuality: recentTrades.length > 0 && oldTrades.length > 0
+        ? Math.round((recentTrades.filter((t: any) => t.pnl > 0).length / recentTrades.length) * 100 - (oldTrades.filter((t: any) => t.pnl > 0).length / oldTrades.length) * 100)
+        : 0,
+      riskManagement: 0,
+      discipline: 0,
+      profitability: recentTrades.length > 0 ? recentTrades.reduce((a: number, t: any) => a + (t.pnl || 0), 0).toFixed(2) : "0",
+    }
+
+    // Risk
+    let peak = 0, maxDD = 0, running = 0
+    sortedTrades.forEach((t: any) => { running += t.pnl || 0; peak = Math.max(peak, running); maxDD = Math.max(maxDD, peak - running) })
+    const riskIntel = {
+      rating: maxDD < 100 ? "Good" : "Moderate",
+      maxDrawdown: maxDD.toFixed(2),
+      avgRiskPerTrade: trades.filter((t: any) => t.pnl < 0).length > 0
+        ? Math.abs(trades.filter((t: any) => t.pnl < 0).reduce((a: number, t: any) => a + t.pnl, 0) / trades.filter((t: any) => t.pnl < 0).length).toFixed(2)
+        : "0",
+      recommendation: "Risk levels acceptable",
+    }
+
+    // Alerts
+    const alerts: any[] = []
+    const daysCount = new Set(trades.map((t: any) => t.created_at?.split("T")[0])).size
+    const avgPerDay = trades.length / Math.max(1, daysCount)
+    if (avgPerDay > 5) alerts.push({ type: "warning", message: `You average ${avgPerDay.toFixed(1)} trades/day. Quality drops after 5.`, riskLevel: "High" })
+
+    // Coach summary
+    const scores = [
+      { name: "Trade Execution", score: executionQuality },
+      { name: "Discipline", score: discipline },
+      { name: "Risk Management", score: riskManagement },
+      { name: "Consistency", score: consistency },
+      { name: "Emotional Control", score: emotionalControl },
+    ].sort((a, b) => b.score - a.score)
+
+    const coachSummary = {
+      strongestSkill: scores[0].name,
+      weakestSkill: scores[scores.length - 1].name,
+      fastestImprovement: "Execution Quality",
+      highestOpportunity: bestAsset ? `Focus on ${bestAsset[0]} trades` : "Add more trades",
+    }
+
+    // Edge
+    const edge = {
+      mostProfitableAsset: bestAsset?.[0] || "N/A",
+      mostProfitableAssetPnL: bestAsset?.[1].pnl.toFixed(2) || "0",
+      mostProfitableTime: "Analyze more trades",
+      mostProfitableDirection: trades.filter((t: any) => t.direction === "Buy").length > trades.filter((t: any) => t.direction === "Sell").length ? "Long" : "Short",
+      bestWinRateAsset: bestAsset?.[0] || "N/A",
+      bestWinRate: bestAsset ? Math.round((bestAsset[1].wins / bestAsset[1].trades) * 100) : 0,
+      averageRR: "0",
+    }
+
+    const totalPnL = trades.reduce((a: number, t: any) => a + (t.pnl || 0), 0)
 
     return NextResponse.json({
       success: true,
       totalTrades: trades.length,
-      summary: {
-        winRate,
-        winningTrades: wins,
-        losingTrades: losses,
-        totalPnl: totalPnL.toFixed(2),
-        profitFactor: "1.0",
-        expectancy: "0.00",
-        maxWinStreak: 0,
-        maxLossStreak: 0,
-        avgWin: wins > 0 ? (trades.filter((t: any) => t.pnl > 0).reduce((a: number, t: any) => a + t.pnl, 0) / wins).toFixed(2) : "0",
-        avgLoss: losses > 0 ? Math.abs(trades.filter((t: any) => t.pnl < 0).reduce((a: number, t: any) => a + t.pnl, 0) / losses).toFixed(2) : "0",
+      aiScore,
+      scores: { discipline, riskManagement, consistency, emotionalControl, executionQuality },
+      coachSummary,
+      hiddenPatterns: [],
+      bestConditions: {
+        bestAsset: bestAsset?.[0] || "N/A",
+        bestAssetWinRate: bestAsset ? Math.round((bestAsset[1].wins / bestAsset[1].trades) * 100) : 0,
+        bestSession: "Analyze more trades",
+        bestDay: "Analyze more trades",
+        bestDirection: edge.mostProfitableDirection,
       },
-      assets: {
-        best: sortedAssets[0] ? { 
-          symbol: sortedAssets[0][0], 
-          pnl: sortedAssets[0][1].pnl.toFixed(2), 
-          trades: sortedAssets[0][1].trades, 
-          winRate: ((sortedAssets[0][1].wins / sortedAssets[0][1].trades) * 100).toFixed(1) 
-        } : null,
-        worst: null,
-        all: sortedAssets.map(([sym, d]) => ({ 
-          symbol: sym, 
-          pnl: d.pnl.toFixed(2), 
-          trades: d.trades, 
-          winRate: ((d.wins / d.trades) * 100).toFixed(1) 
-        })),
-      },
-      emotions: { best: null, worst: null },
-      direction: { buyWinRate: "0", buyTrades: 0, buyPnL: "0", sellWinRate: "0", sellTrades: 0, sellPnL: "0" },
-      whatIf: { 
-        ifCutLossesEarlier: "Trade more to unlock", 
-        ifLetWinnersRun: "Trade more to unlock", 
-        ifNoEmotionTrades: "Trade more to unlock", 
-        ifOnlyBestAsset: "Trade more to unlock", 
-        ifOnlyBestSession: "Trade more to unlock" 
-      },
-      risk: { avgTradesPerDay: "0", largestWin: "0", largestLoss: "0", consecutiveWins: 0, consecutiveLosses: 0 },
-      suggestions,
-      warnings: [],
-      motivation: totalPnL > 0 ? "🚀 You're profitable! Keep going." : "🌱 Keep learning. Every trade is a lesson.",
+      edge,
+      accountKillers: killers,
+      emotionalImpact: emotionImpact,
+      performanceMomentum: momentum,
+      riskIntelligence: riskIntel,
+      behavioralAlerts: alerts,
+      suggestions: [`Your AI Trading Score is ${aiScore}/100. Focus on improving ${coachSummary.weakestSkill}.`],
+      warnings: alerts.map(a => a.message),
+      motivation: aiScore >= 70 ? "🚀 Professional level trading. Keep refining." : aiScore >= 50 ? "📈 Solid foundation. Level up your weakest area." : "🌱 Building blocks are there. Stay consistent.",
     })
   } catch (e: any) {
-    return NextResponse.json({ 
-      success: false, 
-      totalTrades: 0, 
-      message: "Error: " + (e.message || "Unknown error") 
+    return NextResponse.json({
+      success: false,
+      totalTrades: 0,
+      message: "Error: " + (e.message || "Unknown error"),
     })
   }
 }
