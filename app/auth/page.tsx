@@ -38,17 +38,11 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        const result = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        const result = await supabase.auth.signUp({ email, password });
         if (result.error) throw result.error;
         setMessage("Check your email for the confirmation link!");
       } else {
-        const result = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const result = await supabase.auth.signInWithPassword({ email, password });
         if (result.error) throw result.error;
         router.push("/dashboard");
         router.refresh();
@@ -58,16 +52,6 @@ export default function AuthPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleLogin = async () => {
-    const result = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/dashboard",
-      },
-    });
-    if (result.error) setError(result.error.message);
   };
 
   if (checkingAuth) {
@@ -89,19 +73,9 @@ export default function AuthPage() {
             {isSignUp ? "Start your trading journey" : "Sign in to your trading journal"}
           </p>
         </div>
-
         <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800">
-          {error && (
-            <div className="bg-red-900/30 border border-red-500/30 text-red-400 p-4 rounded-xl mb-4 text-sm">
-              {error}
-            </div>
-          )}
-          {message && (
-            <div className="bg-green-900/30 border border-green-500/30 text-green-400 p-4 rounded-xl mb-4 text-sm">
-              {message}
-            </div>
-          )}
-
+          {error && <div className="bg-red-900/30 border border-red-500/30 text-red-400 p-4 rounded-xl mb-4 text-sm">{error}</div>}
+          {message && <div className="bg-green-900/30 border border-green-500/30 text-green-400 p-4 rounded-xl mb-4 text-sm">{message}</div>}
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
               <label className="block text-zinc-400 text-sm mb-1">Email</label>
@@ -115,26 +89,12 @@ export default function AuthPage() {
               {loading ? "Please wait..." : isSignUp ? "Create Account" : "Sign In"}
             </button>
           </form>
-
-          <div className="mt-4">
-            <div className="relative mb-4">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-700"></div></div>
-              <div className="relative flex justify-center text-sm"><span className="px-4 bg-zinc-900 text-zinc-400">or</span></div>
-            </div>
-            <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-black py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
-              🚀 Continue with Google
-            </button>
-          </div>
         </div>
-
         <p className="text-center text-zinc-400 mt-6">
           {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
           <button onClick={() => { setIsSignUp(!isSignUp); setError(""); setMessage(""); }} className="text-yellow-500 hover:text-yellow-400 font-bold transition">
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
-        </p>
-        <p className="text-center mt-4">
-          <a href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition">← Back to home</a>
         </p>
       </div>
     </main>
