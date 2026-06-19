@@ -21,8 +21,11 @@ interface AnalyticsData {
   success: boolean; totalTrades: number; aiScore: number
   scores: { discipline: number; riskManagement: number; consistency: number; emotionalControl: number; executionQuality: number }
   coachSummary: { strongestSkill: string; weakestSkill: string; fastestImprovement: string; highestOpportunity: string }
-  hiddenPatterns: any[]; bestConditions: any; edge: any; accountKillers: any[]
-  emotionalImpact: any[]; performanceMomentum: any; riskIntelligence: any; behavioralAlerts: any[]
+  leakTracker: { totalLeakCost: string; leakPercentage: number; leaks: any[]; summary: string }
+  ghostEquity: any[]
+  preMarketProtocol: { disciplineScore: number; maxPositionSize: string; bestSetup: string; deadZones: string; restrictedAssets: string; rules: string[] }
+  edge: { mostProfitableAsset: string; mostProfitableAssetPnL: string; mostProfitableDirection: string; bestWinRateAsset: string; bestWinRate: number }
+  accountKillers: any[]; behavioralAlerts: any[]
   suggestions: string[]; warnings: string[]; motivation: string; message?: string
 }
 
@@ -169,11 +172,8 @@ export default function TradesPage() {
   }
 
   const selectAsset = (item: SearchResult) => {
-    setSelectedAsset(item.symbol)
-    setSearch("")
-    setResults([])
-    setEntry("")
-    setClosePrice("")
+    setSelectedAsset(item.symbol); setSearch(""); setResults([])
+    setEntry(""); setClosePrice("")
   }
 
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
@@ -274,12 +274,36 @@ export default function TradesPage() {
 
         {activeTab === "analytics" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center"><h2 className="text-xl font-bold">🤖 AI Analytics</h2><button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button></div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">🤖 AI Trading Analytics</h2>
+              <button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button>
+            </div>
             
             {loadingAnalytics ? (
-              <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your trading data...</p></div>
+              <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Crunching your numbers...</p></div>
             ) : analytics && analytics.totalTrades > 0 ? (
               <>
+                {/* LEAK TRACKER */}
+                {analytics.leakTracker && (
+                  <div className={`p-5 rounded-2xl border ${parseFloat(analytics.leakTracker.totalLeakCost) > 0 ? "bg-red-950/20 border-red-500/30" : "bg-green-950/20 border-green-500/30"}`}>
+                    <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                      {parseFloat(analytics.leakTracker.totalLeakCost) > 0 ? "🔴" : "🟢"} Leak Tracker
+                    </h3>
+                    <p className="text-sm text-zinc-300 mb-3">{analytics.leakTracker.summary}</p>
+                    {analytics.leakTracker.leaks?.map((leak: any, i: number) => (
+                      <div key={i} className="flex items-start gap-3 bg-zinc-800/50 p-3 rounded-xl mb-2">
+                        <span className="text-2xl">{leak.icon}</span>
+                        <div className="flex-1">
+                          <div className="flex justify-between"><p className="font-bold text-sm">{leak.label}</p><p className="text-red-400 font-bold text-sm">-${leak.cost.toFixed(2)}</p></div>
+                          <p className="text-xs text-zinc-400">{leak.description}</p>
+                          <p className="text-xs text-zinc-500 mt-1">{leak.trades} trade(s) affected</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* AI SCORE */}
                 <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 text-center">
                   <p className="text-zinc-400 text-sm mb-2">AI Trading Score</p>
                   <p className={`text-5xl font-bold ${analytics.aiScore >= 70 ? "text-green-400" : analytics.aiScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{analytics.aiScore}/100</p>
@@ -289,26 +313,55 @@ export default function TradesPage() {
                     ))}
                   </div>
                 </div>
-                <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
-                  <p className="text-purple-300 font-bold mb-2">🥇 AI Coach Summary</p>
-                  <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary?.strongestSkill}</b></p>
-                  <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary?.weakestSkill}</b></p>
-                  <p className="text-sm text-zinc-300">Top Opportunity: <b className="text-yellow-400">{analytics.coachSummary?.highestOpportunity}</b></p>
-                </div>
+
+                {/* COACH + EDGE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
+                    <p className="text-purple-300 font-bold mb-2">🥇 AI Coach</p>
+                    <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary?.strongestSkill}</b></p>
+                    <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary?.weakestSkill}</b></p>
+                    <p className="text-sm text-zinc-300 mt-2">🎯 {analytics.coachSummary?.highestOpportunity}</p>
+                  </div>
                   <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                     <h3 className="font-bold text-yellow-400 mb-3">🏆 Edge Discovery</h3>
                     <p className="text-sm text-zinc-300">Best Asset: <b>{analytics.edge?.mostProfitableAsset}</b></p>
-                    <p className="text-sm text-zinc-300">Best Direction: <b>{analytics.edge?.mostProfitableDirection}</b></p>
+                    <p className="text-sm text-zinc-300">Direction: <b>{analytics.edge?.mostProfitableDirection}</b></p>
                     <p className="text-sm text-green-400 font-bold">+${analytics.edge?.mostProfitableAssetPnL}</p>
                   </div>
-                  <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                    <h3 className="font-bold text-blue-400 mb-3">⚠️ Account Killers</h3>
-                    {analytics.accountKillers?.length > 0 ? analytics.accountKillers.map((k: any, i: number) => (
-                      <div key={i} className="mb-2"><p className="text-sm text-red-400 font-bold">{k.name}: <span className="text-white">-${k.cost}</span></p><p className="text-xs text-zinc-500">{k.recommendation}</p></div>
-                    )) : <p className="text-sm text-green-400">No major issues detected</p>}
-                  </div>
                 </div>
+
+                {/* PRE-MARKET PROTOCOL */}
+                {analytics.preMarketProtocol && (
+                  <div className="bg-blue-950/20 border border-blue-500/30 p-5 rounded-2xl">
+                    <h3 className="font-bold text-blue-400 mb-3">📋 Your Pre-Market Protocol</h3>
+                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Max Position Size:</span><p className="font-bold text-white">{analytics.preMarketProtocol.maxPositionSize}</p></div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Best Setup:</span><p className="font-bold text-white">{analytics.preMarketProtocol.bestSetup}</p></div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Dead Zones:</span><p className="font-bold text-red-400">{analytics.preMarketProtocol.deadZones}</p></div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Discipline Score:</span><p className="font-bold text-white">{analytics.preMarketProtocol.disciplineScore}/100</p></div>
+                    </div>
+                    <div className="space-y-1">
+                      {analytics.preMarketProtocol.rules?.map((rule: string, i: number) => (
+                        <p key={i} className="text-xs text-zinc-400 flex gap-2"><span className="text-blue-400">•</span>{rule}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ACCOUNT KILLERS */}
+                {analytics.accountKillers?.length > 0 && (
+                  <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                    <h3 className="font-bold text-red-400 mb-3">⚠️ Profit Leaks</h3>
+                    {analytics.accountKillers.map((k: any, i: number) => (
+                      <div key={i} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
+                        <div><p className="text-sm font-bold">{k.name}</p><p className="text-xs text-zinc-500">{k.recommendation}</p></div>
+                        <div className="text-right"><p className="text-red-400 font-bold">-${k.cost}</p><p className="text-xs text-zinc-500">{k.trades} trades</p></div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ALERTS */}
                 {analytics.behavioralAlerts?.length > 0 && (
                   <div className="bg-red-950/20 border border-red-800/30 p-5 rounded-2xl">
                     <h3 className="text-red-400 font-bold mb-3">🚨 Live Alerts</h3>
@@ -317,7 +370,11 @@ export default function TradesPage() {
                     ))}
                   </div>
                 )}
-                <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center"><p className="text-lg">{analytics.motivation}</p></div>
+
+                {/* MOTIVATION */}
+                <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center">
+                  <p className="text-lg">{analytics.motivation}</p>
+                </div>
               </>
             ) : (
               <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800">
