@@ -62,7 +62,7 @@ export const ASSETS: Asset[] = [
   { symbol: "EURCAD", name: "Euro / Canadian Dollar", type: "forex" },
   { symbol: "GBPAUD", name: "British Pound / Australian Dollar", type: "forex" },
   
-  // ========== COMMODITIES (GOLD, SILVER, OIL) ==========
+  // ========== COMMODITIES ==========
   { symbol: "XAUUSD", name: "Gold / US Dollar", type: "commodity" },
   { symbol: "XAGUSD", name: "Silver / US Dollar", type: "commodity" },
   { symbol: "XAUGBP", name: "Gold / British Pound", type: "commodity" },
@@ -109,10 +109,10 @@ export const ASSETS: Asset[] = [
   { symbol: "VIX", name: "CBOE Volatility Index", type: "index", exchange: "CBOE" },
 ]
 
-// Custom assets storage (user-added assets)
+// Custom assets storage
 let customAssets: Asset[] = []
 
-// Load custom assets from localStorage (only in browser)
+// Load custom assets from localStorage
 if (typeof window !== 'undefined') {
   const saved = localStorage.getItem('custom_assets')
   if (saved) {
@@ -125,42 +125,29 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Search function - combines main assets + custom assets
+// Search function
 export function searchAssets(query: string): Asset[] {
-  if (!query || query.length < 1) {
-    return []
-  }
-  
+  if (!query || query.length < 1) return []
   const lowerQuery = query.toLowerCase()
   const allAssets = [...ASSETS, ...customAssets]
-  
-  const results = allAssets.filter(asset => 
+  return allAssets.filter(asset => 
     asset.symbol.toLowerCase().includes(lowerQuery) ||
     asset.name.toLowerCase().includes(lowerQuery)
-  )
-  
-  return results.slice(0, 50)
+  ).slice(0, 50)
 }
 
-// Add custom asset
+// Add custom asset - only checks custom list, not main assets
 export function addCustomAsset(symbol: string, name: string, type: string = 'custom'): boolean {
   const upperSymbol = symbol.toUpperCase()
   
-  // Check if already exists in main assets or custom assets
-  const allAssets = [...ASSETS, ...customAssets]
-  if (allAssets.some(a => a.symbol === upperSymbol)) {
+  // Only check custom assets (allow duplicates of main assets)
+  if (customAssets.some(a => a.symbol === upperSymbol)) {
     return false
   }
   
-  const newAsset: Asset = { 
-    symbol: upperSymbol, 
-    name: name || upperSymbol, 
-    type 
-  }
-  
+  const newAsset: Asset = { symbol: upperSymbol, name: name || upperSymbol, type }
   customAssets.push(newAsset)
   
-  // Save to localStorage
   if (typeof window !== 'undefined') {
     localStorage.setItem('custom_assets', JSON.stringify(customAssets))
   }
@@ -168,7 +155,7 @@ export function addCustomAsset(symbol: string, name: string, type: string = 'cus
   return true
 }
 
-// Get all custom assets (EXPORTED - used by trades page)
+// Get all custom assets
 export function getCustomAssets(): Asset[] {
   return customAssets
 }
@@ -188,11 +175,10 @@ export function deleteCustomAsset(symbol: string): boolean {
 
 // Get asset by symbol
 export function getAssetBySymbol(symbol: string): Asset | undefined {
-  const allAssets = [...ASSETS, ...customAssets]
-  return allAssets.find(a => a.symbol === symbol)
+  return [...ASSETS, ...customAssets].find(a => a.symbol === symbol)
 }
 
-// Get all assets (for debugging)
+// Get all assets
 export function getAllAssets(): Asset[] {
   return [...ASSETS, ...customAssets]
 }
