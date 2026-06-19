@@ -73,6 +73,7 @@ export default function TradesPage() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
+  const [selectedAssetData, setSelectedAssetData] = useState<SearchResult | null>(null)
 
   // Trade form states
   const [direction, setDirection] = useState("Buy")
@@ -278,12 +279,12 @@ export default function TradesPage() {
   // SAVE TRADE - With user_id
   const saveTrade = async () => {
     if (!selectedAsset) {
-      showNotification("Select an asset first", "error")
+      showNotification("Please select an asset first", "error")
       return
     }
     
     if (!entry || !closePrice || !size) {
-      showNotification("Fill all trade fields", "error")
+      showNotification("Please fill in all trade fields", "error")
       return
     }
 
@@ -398,6 +399,19 @@ export default function TradesPage() {
     showNotification(`"${customEmotion}" added`, "success")
   }
 
+  // Select asset from search - auto-fill entry price
+  const selectAsset = (item: SearchResult) => {
+    setSelectedAsset(item.symbol)
+    setSelectedAssetData(item)
+    setSearch("")
+    setResults([])
+    
+    // Auto-fill entry price with current market price
+    if (item.price) {
+      setEntry(item.price.toString())
+    }
+  }
+
   // Show loader while checking auth and loading data
   if (!authChecked || pageLoading) {
     return <AppLoader message="Loading Trading Journal" />
@@ -407,18 +421,18 @@ export default function TradesPage() {
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
       <Sidebar />
       
-      <section className="flex-1 p-8 overflow-y-auto">
+      <section className="flex-1 p-4 md:p-8 overflow-y-auto">
         {/* Notification */}
         {notification && (
-          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg transition-all ${
+          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg transition-all animate-bounce ${
             notification.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
           }`}>
             {notification.message}
           </div>
         )}
 
-        <h1 className="text-4xl font-bold mb-2">Trading Journal</h1>
-        <p className="text-zinc-400 mb-6">Professional trade tracking system with AI insights</p>
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">Trading Journal</h1>
+        <p className="text-zinc-400 mb-6">Track your trades with real-time market data</p>
 
         {/* TAB SWITCHER */}
         <div className="flex gap-4 mb-6 border-b border-zinc-800">
@@ -430,7 +444,7 @@ export default function TradesPage() {
                 : "text-zinc-400 hover:text-white"
             }`}
           >
-            📝 Trading Journal
+            📝 Trade Journal
           </button>
           <button
             onClick={() => setActiveTab("analytics")}
@@ -449,13 +463,30 @@ export default function TradesPage() {
           <>
             {/* SELECTED ASSET */}
             {selectedAsset && (
-              <div className="mb-4 p-4 bg-green-900/20 border border-green-600 rounded-xl flex justify-between items-center">
-                <span>🔒 Locked Asset: <b>{selectedAsset}</b></span>
+              <div className="mb-4 p-4 bg-green-900/20 border border-green-600 rounded-xl flex justify-between items-center flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-zinc-400">Selected:</span>
+                  <b className="text-white text-lg">{selectedAsset}</b>
+                  {selectedAssetData?.price && (
+                    <span className={`text-sm font-semibold ${(selectedAssetData.change || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      ${selectedAssetData.price.toFixed(2)}
+                      {selectedAssetData.change !== null && (
+                        <span className="ml-1">
+                          ({(selectedAssetData.change || 0) >= 0 ? "+" : ""}{selectedAssetData.change?.toFixed(2)}%)
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
                 <button
-                  onClick={() => setSelectedAsset(null)}
+                  onClick={() => {
+                    setSelectedAsset(null)
+                    setSelectedAssetData(null)
+                    setEntry("")
+                  }}
                   className="text-sm text-red-400 hover:text-red-300 transition"
                 >
-                  Change
+                  ✕ Change Asset
                 </button>
               </div>
             )}
@@ -466,10 +497,18 @@ export default function TradesPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search TSLA, XAUUSD, BTCUSD..."
+                  placeholder="Search for any asset... (TSLA, AAPL, BTCUSD, XAUUSD)"
                   className="w-full p-4 pl-12 bg-zinc-900 border border-zinc-700 rounded-xl focus:border-yellow-500 outline-none transition text-lg"
                 />
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xl">🔍</span>
+                {search && (
+                  <button
+                    onClick={() => { setSearch(""); setResults([]) }}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             )}
 
@@ -483,12 +522,8 @@ export default function TradesPage() {
                 {results.map((item, index) => (
                   <div
                     key={`${item.symbol}-${index}`}
-                    onClick={() => {
-                      setSelectedAsset(item.symbol)
-                      setSearch("")
-                      setResults([])
-                    }}
-                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-b-0"
+                    onClick={() => selectAsset(item)}
+                    className="flex items-center justify-between p-4 hover:bg-zinc-800 cursor-pointer transition border-b border-zinc-800/50 last:border-b-0 group"
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
@@ -500,7 +535,7 @@ export default function TradesPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <b className="text-white">{item.symbol}</b>
+                          <b className="text-white group-hover:text-yellow-400 transition">{item.symbol}</b>
                           <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
                             {item.exchange}
                           </span>
@@ -513,7 +548,7 @@ export default function TradesPage() {
                         <p className="text-white font-semibold">${item.price.toFixed(2)}</p>
                       )}
                       {item.change !== null && item.change !== undefined && (
-                        <p className={`text-sm ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        <p className={`text-sm font-medium ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>
                           {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%
                         </p>
                       )}
@@ -535,7 +570,7 @@ export default function TradesPage() {
             {loading && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
                 <div className="animate-spin text-3xl mb-3">🔍</div>
-                <p className="text-zinc-400">Searching global markets...</p>
+                <p className="text-zinc-400">Searching markets...</p>
               </div>
             )}
 
@@ -543,13 +578,13 @@ export default function TradesPage() {
             {!loading && results && results.length === 0 && search.length > 0 && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
                 <p className="text-4xl mb-3">🔍</p>
-                <p className="text-zinc-400 mb-2">No assets found for "<b className="text-white">{search}</b>"</p>
-                <p className="text-sm text-zinc-500 mb-3">Try a different symbol or</p>
+                <p className="text-zinc-400 mb-2">No results for "<b className="text-white">{search}</b>"</p>
+                <p className="text-sm text-zinc-500 mb-3">Try a different symbol or add it manually</p>
                 <button
                   onClick={() => setShowCustomModal(true)}
                   className="text-blue-400 hover:text-blue-300 text-sm transition"
                 >
-                  + Add it manually
+                  + Add Custom Asset
                 </button>
               </div>
             )}
@@ -561,7 +596,7 @@ export default function TradesPage() {
                   onClick={() => setShowCustomModal(true)}
                   className="text-sm text-blue-400 hover:text-blue-300 transition"
                 >
-                  + Can't find an asset? Add it manually
+                  + Can't find your asset? Add it manually
                 </button>
               </div>
             )}
@@ -569,7 +604,14 @@ export default function TradesPage() {
             {/* TRADE FORM */}
             {selectedAsset && (
               <div className="mt-6 space-y-6 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <h3 className="text-lg font-bold text-yellow-500 mb-2">New Trade - {selectedAsset}</h3>
+                <h3 className="text-lg font-bold text-yellow-500 mb-2">
+                  New Trade — {selectedAsset}
+                  {selectedAssetData?.price && (
+                    <span className="text-sm font-normal text-zinc-400 ml-2">
+                      Current: ${selectedAssetData.price.toFixed(2)}
+                    </span>
+                  )}
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Direction</label>
@@ -578,17 +620,24 @@ export default function TradesPage() {
                       onChange={(e) => setDirection(e.target.value)}
                       className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
                     >
-                      <option value="Buy">🟢 Buy</option>
-                      <option value="Sell">🔴 Sell</option>
+                      <option value="Buy">🟢 Buy (Long)</option>
+                      <option value="Sell">🔴 Sell (Short)</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">Entry Price</label>
+                    <label className="block text-zinc-400 text-sm mb-1">
+                      Entry Price
+                      {entry && selectedAssetData?.price && (
+                        <span className="text-xs text-zinc-500 ml-2">
+                          (Market: ${selectedAssetData.price.toFixed(2)})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
-                      placeholder="150.00"
+                      placeholder={selectedAssetData?.price ? `Market price: ${selectedAssetData.price.toFixed(2)}` : "Entry price"}
                       value={entry}
                       onChange={(e) => setEntry(e.target.value)}
                       className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
@@ -596,11 +645,11 @@ export default function TradesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">Close Price</label>
+                    <label className="block text-zinc-400 text-sm mb-1">Exit Price</label>
                     <input
                       type="number"
                       step="any"
-                      placeholder="155.00"
+                      placeholder="Your exit price"
                       value={closePrice}
                       onChange={(e) => setClosePrice(e.target.value)}
                       className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
@@ -608,13 +657,13 @@ export default function TradesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">Size</label>
+                    <label className="block text-zinc-400 text-sm mb-1">Position Size</label>
                     <div className="space-y-2">
                       <div className="flex gap-3">
                         <input
                           type="number"
                           step="any"
-                          placeholder={sizeUnit === "lots" ? "Lots (1 lot = 100,000 units)" : 
+                          placeholder={sizeUnit === "lots" ? "Number of lots" : 
                                        sizeUnit === "coins" ? "Number of coins" : 
                                        "Number of shares"}
                           value={size}
@@ -660,16 +709,16 @@ export default function TradesPage() {
                       </div>
                       {size && (
                         <p className="text-xs text-zinc-500">
-                          {sizeUnit === "lots" && `📊 Position size: ${(parseFloat(size) * 100000).toLocaleString()} units`}
-                          {sizeUnit === "shares" && `📈 Position size: ${parseFloat(size).toLocaleString()} shares`}
-                          {sizeUnit === "coins" && `🪙 Position size: ${parseFloat(size).toLocaleString()} coins`}
+                          {sizeUnit === "lots" && `📊 Total: ${(parseFloat(size) * 100000).toLocaleString()} units`}
+                          {sizeUnit === "shares" && `📈 Total: ${parseFloat(size).toLocaleString()} shares`}
+                          {sizeUnit === "coins" && `🪙 Total: ${parseFloat(size).toLocaleString()} coins`}
                         </p>
                       )}
                     </div>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-zinc-400 text-sm mb-1">Emotion (optional)</label>
+                    <label className="block text-zinc-400 text-sm mb-1">How did you feel? (optional)</label>
                     <select
                       value={emotion}
                       onChange={(e) => {
@@ -696,9 +745,9 @@ export default function TradesPage() {
             {/* PNL DISPLAY */}
             {selectedAsset && entry && closePrice && size && (
               <div className="mt-4 p-4 bg-zinc-900 border border-zinc-800 rounded-xl flex justify-between items-center">
-                <span className="text-zinc-400">Estimated P&L</span>
+                <span className="text-zinc-400">Estimated Profit / Loss</span>
                 <span className={`text-xl font-bold ${calculatePnL() >= 0 ? "text-green-400" : "text-red-400"}`}>
-                  ${calculatePnL().toFixed(2)}
+                  {calculatePnL() >= 0 ? "+" : ""}${calculatePnL().toFixed(2)}
                 </span>
               </div>
             )}
@@ -708,7 +757,7 @@ export default function TradesPage() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={saveTrade}
-                  className="bg-yellow-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-yellow-400 transition"
+                  className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition"
                 >
                   💾 Save Trade
                 </button>
@@ -726,6 +775,7 @@ export default function TradesPage() {
                 <button
                   onClick={() => {
                     setSelectedAsset(null)
+                    setSelectedAssetData(null)
                     setEntry("")
                     setClosePrice("")
                     setSize("")
@@ -735,26 +785,30 @@ export default function TradesPage() {
                   }}
                   className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600 transition"
                 >
-                  ➕ New Asset
+                  ➕ Pick Different Asset
                 </button>
               </div>
             )}
 
             {/* TRADE HISTORY */}
             <div className="mt-8 space-y-3">
-              <h2 className="text-2xl font-bold mb-4">Trade History</h2>
+              <h2 className="text-2xl font-bold mb-4">
+                Your Trade History
+                {trades.length > 0 && <span className="text-sm text-zinc-500 ml-2 font-normal">({trades.length} trades)</span>}
+              </h2>
               {trades.length === 0 && (
                 <div className="text-center py-12 bg-zinc-900 rounded-2xl border border-zinc-800">
                   <p className="text-4xl mb-4">📝</p>
-                  <p className="text-zinc-500">No trades yet. Start by adding one above!</p>
+                  <p className="text-zinc-400 mb-2">No trades recorded yet</p>
+                  <p className="text-zinc-500 text-sm">Search for an asset above to get started</p>
                 </div>
               )}
               {trades.map((t) => (
                 <div key={t.id} className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition group">
                   <div className="flex justify-between items-start">
-                    <div>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <b className="text-lg">{t.asset}</b>
-                      <span className={`ml-2 px-2 py-0.5 rounded-lg text-xs font-bold ${
+                      <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
                         t.direction === "Buy" ? "bg-green-900 text-green-400" : "bg-red-900 text-red-400"
                       }`}>
                         {t.direction.toUpperCase()}
@@ -762,7 +816,7 @@ export default function TradesPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`text-lg font-bold ${t.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        ${t.pnl?.toFixed(2)}
+                        {t.pnl >= 0 ? "+" : ""}${t.pnl?.toFixed(2)}
                       </span>
                       <button
                         onClick={() => deleteTrade(t.id)}
@@ -774,9 +828,11 @@ export default function TradesPage() {
                     </div>
                   </div>
                   <p className="text-sm text-zinc-400 mt-1">
-                    Entry: ${t.entry} | Close: ${t.close_price} | Size: {t.original_size || t.size} {t.size_unit || ""}
+                    Entry: ${t.entry} → Exit: ${t.close_price} • Size: {t.original_size || t.size} {t.size_unit || ""}
                   </p>
-                  {t.emotion && <p className="text-sm text-zinc-500 mt-1">🧠 {t.emotion}</p>}
+                  {t.emotion && (
+                    <p className="text-sm text-zinc-500 mt-1">🧠 Felt: {t.emotion}</p>
+                  )}
                 </div>
               ))}
             </div>
@@ -961,7 +1017,7 @@ export default function TradesPage() {
               className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700 focus:border-blue-500 outline-none"
             />
             <p className="text-xs text-zinc-500 mb-4">
-              Tip: You can add any symbol including forex, crypto, or custom instruments
+              You can add stocks, forex pairs, crypto, or any custom instrument
             </p>
             <div className="flex gap-3">
               <button onClick={handleAddCustomAsset} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold transition">
