@@ -61,7 +61,6 @@ export default function TradesPage() {
     setNotification({ message, type }); setTimeout(() => setNotification(null), 3000)
   }
 
-  // Check auth on mount
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -70,7 +69,6 @@ export default function TradesPage() {
     }; checkAuth()
   }, [router])
 
-  // Load saved data from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("custom_emotions")
@@ -103,7 +101,6 @@ export default function TradesPage() {
     }
   }, [selectedAsset, getAssetType])
 
-  // Search assets
   useEffect(() => {
     const fetchAssets = async () => {
       if (search.length < 1) { setResults([]); return }
@@ -122,7 +119,6 @@ export default function TradesPage() {
     return () => clearTimeout(delay)
   }, [search, recentAssets])
 
-  // Fetch trades for current user
   const fetchTrades = useCallback(async () => {
     if (!userId) return
     try {
@@ -133,28 +129,27 @@ export default function TradesPage() {
 
   useEffect(() => { if (userId) fetchTrades() }, [userId, fetchTrades])
 
-  // Fetch analytics with auth token
   const fetchAnalytics = async () => {
     setLoadingAnalytics(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
+      if (!userId) {
         setAnalytics({ totalTrades: 0, message: "Please log in to see analytics" } as any)
         setLoadingAnalytics(false)
         return
       }
-      const res = await fetch("/api/analytics", {
-        headers: { "Authorization": `Bearer ${session.access_token}`, "Content-Type": "application/json" }
-      })
+      const res = await fetch(`/api/analytics?userId=${userId}`)
       const data = await res.json()
+      console.log("Analytics data:", data)
       setAnalytics(data)
-    } catch (error) { console.error("Failed to fetch analytics:", error) }
-    finally { setLoadingAnalytics(false) }
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error)
+    } finally {
+      setLoadingAnalytics(false)
+    }
   }
 
-  useEffect(() => { if (activeTab === "analytics") fetchAnalytics() }, [activeTab])
+  useEffect(() => { if (activeTab === "analytics") fetchAnalytics() }, [activeTab, userId])
 
-  // P&L Calculation
   const calculatePnL = useCallback(() => {
     const e = parseFloat(entry), c = parseFloat(closePrice); let s = parseFloat(size)
     if (isNaN(e) || isNaN(c) || isNaN(s)) return 0
@@ -162,7 +157,6 @@ export default function TradesPage() {
     return direction === "Buy" ? (c - e) * s : (e - c) * s
   }, [entry, closePrice, size, sizeUnit, direction])
 
-  // Save trade
   const saveTrade = async () => {
     if (!selectedAsset) { showNotification("Select an asset first", "error"); return }
     if (!entry || !closePrice || !size) { showNotification("Fill all trade fields", "error"); return }
@@ -178,7 +172,6 @@ export default function TradesPage() {
     } catch (err) { showNotification("Failed to save trade", "error") }
   }
 
-  // Delete trade
   const deleteTrade = async (id: string) => {
     try {
       const { error } = await supabase.from("trades").delete().eq("id", id)
@@ -187,7 +180,6 @@ export default function TradesPage() {
     } catch (err) { showNotification("Failed to delete", "error") }
   }
 
-  // Add custom asset
   const handleAddCustomAsset = () => {
     if (!customSymbol.trim()) { showNotification("Enter a symbol", "error"); return }
     const added = addCustomAsset(customSymbol.toUpperCase(), customName)
@@ -195,7 +187,6 @@ export default function TradesPage() {
     else { showNotification(`"${customSymbol.toUpperCase()}" already in your custom list`, "error") }
   }
 
-  // Add custom emotion
   const handleAddCustomEmotion = () => {
     if (!customEmotion.trim()) { showNotification("Enter an emotion", "error"); return }
     if (allEmotions.includes(customEmotion)) { showNotification("Already exists", "error"); return }
@@ -204,7 +195,6 @@ export default function TradesPage() {
     setCustomEmotion(""); setShowEmotionModal(false); showNotification(`"${customEmotion}" added`, "success")
   }
 
-  // Select asset from search - auto-fill prices
   const selectAsset = (item: SearchResult) => {
     setSelectedAsset(item.symbol); setSelectedAssetData(item); setSearch(""); setResults([])
     if (item.price) {
@@ -216,29 +206,24 @@ export default function TradesPage() {
     } else { setEntry(""); setClosePrice("") }
   }
 
-  // Loading state
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
       <Sidebar />
       <section className="flex-1 p-4 md:p-8 overflow-y-auto">
-        {/* Notification */}
         {notification && <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg transition-all animate-bounce ${notification.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"}`}>{notification.message}</div>}
 
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Trading Journal</h1>
         <p className="text-zinc-400 mb-6">Track your trades with real-time market data</p>
 
-        {/* Tab Switcher */}
         <div className="flex gap-4 mb-6 border-b border-zinc-800">
           <button onClick={() => setActiveTab("journal")} className={`pb-2 px-4 font-bold transition ${activeTab === "journal" ? "text-yellow-500 border-b-2 border-yellow-500" : "text-zinc-400 hover:text-white"}`}>📝 Trade Journal</button>
           <button onClick={() => setActiveTab("analytics")} className={`pb-2 px-4 font-bold transition ${activeTab === "analytics" ? "text-yellow-500 border-b-2 border-yellow-500" : "text-zinc-400 hover:text-white"}`}>🤖 AI Analytics</button>
         </div>
 
-        {/* ========== JOURNAL TAB ========== */}
         {activeTab === "journal" && (
           <>
-            {/* Selected Asset Banner */}
             {selectedAsset && (
               <div className="mb-4 p-4 bg-green-900/20 border border-green-600 rounded-xl flex justify-between items-center flex-wrap gap-2">
                 <div className="flex items-center gap-3">
@@ -250,7 +235,6 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Search Input */}
             {!selectedAsset && (
               <div className="relative">
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Type 2-3 letters to search... (TSLA, AAPL, BTCUSD)" className="w-full p-4 pl-12 bg-zinc-900 border border-zinc-700 rounded-xl focus:border-yellow-500 outline-none transition text-lg" autoComplete="off" />
@@ -259,7 +243,6 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Search Results */}
             {!selectedAsset && !loading && results.length > 0 && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden">
                 <div className="p-3 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider flex justify-between"><span>Results ({results.length})</span><span className="text-zinc-600">Click to select</span></div>
@@ -281,10 +264,8 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Loading State */}
             {loading && <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center"><div className="animate-spin text-3xl mb-3">🔍</div><p className="text-zinc-400">Searching markets...</p></div>}
 
-            {/* No Results */}
             {!loading && search.length > 0 && results.length === 0 && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
                 <p className="text-4xl mb-3">🔍</p><p className="text-zinc-400 mb-2">No results for "<b className="text-white">{search}</b>"</p>
@@ -292,12 +273,10 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Add Custom Asset Button */}
             {!selectedAsset && search.length === 0 && (
               <div className="mt-4"><button onClick={() => setShowCustomModal(true)} className="text-sm text-blue-400 hover:text-blue-300 transition">+ Add custom asset manually</button></div>
             )}
 
-            {/* Trade Form */}
             {selectedAsset && (
               <div className="mt-6 space-y-6 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
                 <h3 className="text-lg font-bold text-yellow-500 mb-2">New Trade — {selectedAsset}</h3>
@@ -310,47 +289,20 @@ export default function TradesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">
-                      Entry Price
-                      {selectedAssetData?.price && <span className="text-green-400 text-xs ml-2">← Live: ${selectedAssetData.price.toFixed(2)}</span>}
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={entry}
-                      onChange={(e) => setEntry(e.target.value)}
-                      placeholder={selectedAssetData?.price ? `Market: ${selectedAssetData.price.toFixed(2)}` : "Entry price"}
-                      className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
-                    />
+                    <label className="block text-zinc-400 text-sm mb-1">Entry Price {selectedAssetData?.price && <span className="text-green-400 text-xs ml-2">← Live: ${selectedAssetData.price.toFixed(2)}</span>}</label>
+                    <input type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder={selectedAssetData?.price ? `Market: ${selectedAssetData.price.toFixed(2)}` : "Entry price"} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">
-                      Close Price
-                      {entry && !closePrice && <span className="text-zinc-500 text-xs ml-2">(Suggested: ${(parseFloat(entry) + 5).toFixed(2)})</span>}
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={closePrice}
-                      onChange={(e) => setClosePrice(e.target.value)}
-                      placeholder={entry ? `Suggested: ${(parseFloat(entry) + 5).toFixed(2)}` : "Exit price"}
-                      className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
-                    />
+                    <label className="block text-zinc-400 text-sm mb-1">Close Price {entry && !closePrice && <span className="text-zinc-500 text-xs ml-2">(Suggested: ${(parseFloat(entry) + 5).toFixed(2)})</span>}</label>
+                    <input type="number" step="any" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder={entry ? `Suggested: ${(parseFloat(entry) + 5).toFixed(2)}` : "Exit price"} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                   </div>
 
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Size</label>
                     <div className="space-y-2">
                       <div className="flex gap-3">
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder={sizeUnit === "lots" ? "Number of lots" : sizeUnit === "coins" ? "Number of coins" : "Number of shares"}
-                          value={size}
-                          onChange={(e) => setSize(e.target.value)}
-                          className="flex-1 p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
-                        />
+                        <input type="number" step="any" placeholder={sizeUnit === "lots" ? "Number of lots" : sizeUnit === "coins" ? "Number of coins" : "Number of shares"} value={size} onChange={(e) => setSize(e.target.value)} className="flex-1 p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setSizeUnit("shares")} className={`px-3 rounded-xl font-bold text-sm transition ${sizeUnit === "shares" ? "bg-yellow-500 text-black" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Shares</button>
                           <button type="button" onClick={() => setSizeUnit("lots")} className={`px-3 rounded-xl font-bold text-sm transition ${sizeUnit === "lots" ? "bg-yellow-500 text-black" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}>Lots</button>
@@ -373,7 +325,6 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* P&L Display */}
             {selectedAsset && entry && closePrice && size && (
               <div className="mt-4 p-4 bg-zinc-900 border border-zinc-800 rounded-xl flex justify-between items-center">
                 <span className="text-zinc-400">Estimated P&L</span>
@@ -381,7 +332,6 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Action Buttons */}
             {selectedAsset && (
               <div className="mt-4 flex flex-wrap gap-3">
                 <button onClick={saveTrade} className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition">💾 Save Trade</button>
@@ -390,7 +340,6 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* Trade History */}
             <div className="mt-8 space-y-3">
               <h2 className="text-2xl font-bold mb-4">Trade History{trades.length > 0 && <span className="text-sm text-zinc-500 ml-2 font-normal">({trades.length} trades)</span>}</h2>
               {trades.length === 0 && <div className="text-center py-12 bg-zinc-900 rounded-2xl border border-zinc-800"><p className="text-4xl mb-4">📝</p><p className="text-zinc-400 mb-2">No trades yet</p><p className="text-zinc-500 text-sm">Search for an asset above to get started</p></div>}
@@ -408,7 +357,6 @@ export default function TradesPage() {
           </>
         )}
 
-        {/* ========== AI ANALYTICS TAB ========== */}
         {activeTab === "analytics" && (
           <div className="space-y-6">
             <div className="flex justify-end"><button onClick={fetchAnalytics} className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition">🔄 Refresh Analytics</button></div>
@@ -441,7 +389,6 @@ export default function TradesPage() {
         )}
       </section>
 
-      {/* Custom Asset Modal */}
       {showCustomModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCustomModal(false)}>
           <div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={(e) => e.stopPropagation()}>
@@ -454,7 +401,6 @@ export default function TradesPage() {
         </div>
       )}
 
-      {/* Custom Emotion Modal */}
       {showEmotionModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmotionModal(false)}>
           <div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={(e) => e.stopPropagation()}>
