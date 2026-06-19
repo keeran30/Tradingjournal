@@ -132,10 +132,8 @@ export default function TradesPage() {
     if (!userId) return
     setLoadingAnalytics(true)
     try {
-      console.log("Fetching analytics for userId:", userId)
       const res = await fetch(`/api/analytics?userId=${userId}`)
       const data = await res.json()
-      console.log("Analytics result:", data)
       setAnalytics(data)
     } catch (e) { console.error(e) } finally { setLoadingAnalytics(false) }
   }, [userId])
@@ -171,8 +169,11 @@ export default function TradesPage() {
   }
 
   const selectAsset = (item: SearchResult) => {
-    setSelectedAsset(item.symbol); setSearch(""); setResults([])
-    setEntry(""); setClosePrice("")
+    setSelectedAsset(item.symbol)
+    setSearch("")
+    setResults([])
+    setEntry("")
+    setClosePrice("")
   }
 
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
@@ -230,8 +231,8 @@ export default function TradesPage() {
                 <h3 className="text-lg font-bold text-yellow-500">New Trade — {selectedAsset}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div><label className="block text-zinc-400 text-sm mb-1">Direction</label><select value={direction} onChange={(e) => setDirection(e.target.value)} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700"><option value="Buy">🟢 Buy (Long)</option><option value="Sell">🔴 Sell (Short)</option></select></div>
-                  <div><label className="block text-zinc-400 text-sm mb-1">Entry Price</label><input type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Enter your entry price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
-                  <div><label className="block text-zinc-400 text-sm mb-1">Close Price</label><input type="number" step="any" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder="Enter your exit price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
+                  <div><label className="block text-zinc-400 text-sm mb-1">Entry Price</label><input type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Entry price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
+                  <div><label className="block text-zinc-400 text-sm mb-1">Close Price</label><input type="number" step="any" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder="Exit price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Size</label>
                     <div className="flex gap-3">
@@ -279,29 +280,21 @@ export default function TradesPage() {
               <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your trading data...</p></div>
             ) : analytics && analytics.totalTrades > 0 ? (
               <>
-                {/* AI Score */}
                 <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 text-center">
                   <p className="text-zinc-400 text-sm mb-2">AI Trading Score</p>
                   <p className={`text-5xl font-bold ${analytics.aiScore >= 70 ? "text-green-400" : analytics.aiScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{analytics.aiScore}/100</p>
                   <div className="grid grid-cols-5 gap-2 mt-4 text-xs">
                     {Object.entries(analytics.scores || {}).map(([key, val]: any) => (
-                      <div key={key} className="bg-zinc-800 p-2 rounded-lg">
-                        <p className="text-zinc-500">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
-                        <p className="font-bold text-white">{val}</p>
-                      </div>
+                      <div key={key} className="bg-zinc-800 p-2 rounded-lg"><p className="text-zinc-500">{key.replace(/([A-Z])/g, ' $1').trim()}</p><p className="font-bold text-white">{val}</p></div>
                     ))}
                   </div>
                 </div>
-
-                {/* Coach Summary */}
                 <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
                   <p className="text-purple-300 font-bold mb-2">🥇 AI Coach Summary</p>
                   <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary?.strongestSkill}</b></p>
                   <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary?.weakestSkill}</b></p>
                   <p className="text-sm text-zinc-300">Top Opportunity: <b className="text-yellow-400">{analytics.coachSummary?.highestOpportunity}</b></p>
                 </div>
-
-                {/* Edge & Conditions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                     <h3 className="font-bold text-yellow-400 mb-3">🏆 Edge Discovery</h3>
@@ -316,8 +309,6 @@ export default function TradesPage() {
                     )) : <p className="text-sm text-green-400">No major issues detected</p>}
                   </div>
                 </div>
-
-                {/* Alerts */}
                 {analytics.behavioralAlerts?.length > 0 && (
                   <div className="bg-red-950/20 border border-red-800/30 p-5 rounded-2xl">
                     <h3 className="text-red-400 font-bold mb-3">🚨 Live Alerts</h3>
@@ -326,17 +317,12 @@ export default function TradesPage() {
                     ))}
                   </div>
                 )}
-
-                {/* Motivation */}
-                <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center">
-                  <p className="text-lg">{analytics.motivation}</p>
-                </div>
+                <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center"><p className="text-lg">{analytics.motivation}</p></div>
               </>
             ) : (
               <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800">
                 <p className="text-6xl mb-4">🤖</p>
                 <p className="text-zinc-400 text-lg mb-2">{analytics?.message || "No trades yet"}</p>
-                <p className="text-zinc-500 mb-4">Add trades to unlock AI-powered insights</p>
                 <button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button>
               </div>
             )}
@@ -344,7 +330,7 @@ export default function TradesPage() {
         )}
       </section>
 
-      {showCustomModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCustomModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Custom Asset</h3><input type="text" placeholder="Symbol (e.g., XAUUSD)" value={customSymbol} onChange={e => setCustomSymbol(e.target.value.toUpperCase())} className="w-full p-3 bg-zinc-800 rounded-xl mb-3 border border-zinc-700" autoFocus /><input type="text" placeholder="Name (optional)" value={customName} onChange={e => setCustomName(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" /><div className="flex gap-3"><button onClick={() => { if(!customSymbol.trim())return; addCustomAsset(customSymbol.toUpperCase(),customName); saveToRecentAssets(customSymbol.toUpperCase()); setShowCustomModal(false); setCustomSymbol(""); setCustomName(""); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowCustomModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
+      {showCustomModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCustomModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Custom Asset</h3><input type="text" placeholder="Symbol" value={customSymbol} onChange={e => setCustomSymbol(e.target.value.toUpperCase())} className="w-full p-3 bg-zinc-800 rounded-xl mb-3 border border-zinc-700" autoFocus /><input type="text" placeholder="Name (optional)" value={customName} onChange={e => setCustomName(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" /><div className="flex gap-3"><button onClick={() => { if(!customSymbol.trim())return; addCustomAsset(customSymbol.toUpperCase(),customName); saveToRecentAssets(customSymbol.toUpperCase()); setShowCustomModal(false); setCustomSymbol(""); setCustomName(""); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowCustomModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
 
       {showEmotionModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmotionModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Emotion</h3><input type="text" placeholder="e.g., Euphoric" value={customEmotion} onChange={e => setCustomEmotion(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" autoFocus /><div className="flex gap-3"><button onClick={() => { if(!customEmotion.trim()||allEmotions.includes(customEmotion))return; const u=[...customEmotions,customEmotion]; setCustomEmotions(u); localStorage.setItem("custom_emotions",JSON.stringify(u)); setCustomEmotion(""); setShowEmotionModal(false); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowEmotionModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
 
