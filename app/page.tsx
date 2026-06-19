@@ -1,9 +1,27 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "./lib/supabase";
+import AppLoader from "./components/AppLoader";
 
 export default function LandingPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+      setLoading(false);
+    };
+    checkUser();
+  }, []);
+
+  if (loading) {
+    return <AppLoader message="Welcome to TradeVault" />;
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-zinc-900 to-black text-white">
@@ -19,13 +37,32 @@ export default function LandingPage() {
           Track your trades, analyze patterns, and get personalized insights to become a better trader.
         </p>
         
-        <div className="flex gap-4">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="bg-yellow-500 hover:bg-yellow-600 text-black px-8 py-4 rounded-xl text-lg font-bold transition"
-          >
-            Get Started Free
-          </button>
+        <div className="flex gap-4 flex-wrap justify-center">
+          {user ? (
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="bg-yellow-500 hover:bg-yellow-600 text-black px-8 py-4 rounded-xl text-lg font-bold transition"
+            >
+              Go to Dashboard
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push("/auth")}
+              className="bg-yellow-500 hover:bg-yellow-600 text-black px-8 py-4 rounded-xl text-lg font-bold transition"
+            >
+              Get Started Free
+            </button>
+          )}
+          
+          {!user && (
+            <button
+              onClick={() => router.push("/auth")}
+              className="border border-zinc-600 hover:border-zinc-400 hover:bg-zinc-800 text-white px-8 py-4 rounded-xl text-lg transition"
+            >
+              Sign In
+            </button>
+          )}
+
           <a
             href="#features"
             className="border border-zinc-600 hover:border-zinc-400 text-white px-8 py-4 rounded-xl text-lg transition"
@@ -40,7 +77,7 @@ export default function LandingPage() {
         <h2 className="text-3xl font-bold text-center mb-12">Why TradeVault?</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700">
+          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700 hover:border-zinc-500 transition">
             <div className="text-4xl mb-4">📊</div>
             <h3 className="text-xl font-bold mb-2">Track Everything</h3>
             <p className="text-zinc-400">
@@ -48,7 +85,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700">
+          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700 hover:border-zinc-500 transition">
             <div className="text-4xl mb-4">🤖</div>
             <h3 className="text-xl font-bold mb-2">AI Coach</h3>
             <p className="text-zinc-400">
@@ -56,7 +93,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700">
+          <div className="bg-zinc-800/50 p-8 rounded-2xl border border-zinc-700 hover:border-zinc-500 transition">
             <div className="text-4xl mb-4">📈</div>
             <h3 className="text-xl font-bold mb-2">Analytics</h3>
             <p className="text-zinc-400">
