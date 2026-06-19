@@ -168,7 +168,7 @@ export function addCustomAsset(symbol: string, name: string, type: string = 'cus
   return true
 }
 
-// Get all custom assets
+// Get all custom assets (EXPORTED - used by trades page)
 export function getCustomAssets(): Asset[] {
   return customAssets
 }

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Sidebar from "../components/Sidebar"
 import { supabase } from "../lib/supabase"
-import { addCustomAsset } from "../data/assets"
+import { addCustomAsset, getCustomAssets } from "../data/assets"
 import AIAssistant from "../components/AIAssistant"
 import AppLoader from "../components/AppLoader"
 
@@ -107,6 +107,9 @@ export default function TradesPage() {
   // Page loading state
   const [pageLoading, setPageLoading] = useState(true)
 
+  // Previously traded assets (from user's trade history)
+  const [recentAssets, setRecentAssets] = useState<string[]>([])
+
   const defaultEmotions = [
     "😌 Calm",
     "😊 Confident",
@@ -158,6 +161,29 @@ export default function TradesPage() {
     }
   }, [])
 
+  // Load recent assets from localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("recent_assets")
+      if (saved) {
+        try {
+          setRecentAssets(JSON.parse(saved))
+        } catch (e) {
+          console.error("Failed to parse recent assets:", e)
+        }
+      }
+    }
+  }, [])
+
+  // Save asset to recent list
+  const saveToRecentAssets = (symbol: string) => {
+    const updated = [symbol, ...recentAssets.filter(a => a !== symbol)].slice(0, 20)
+    setRecentAssets(updated)
+    if (typeof window !== "undefined") {
+      localStorage.setItem("recent_assets", JSON.stringify(updated))
+    }
+  }
+
   // Helper function to determine asset type
   const getAssetType = useCallback((symbol: string): "stock" | "forex" | "crypto" | "commodity" => {
     const forexSymbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD", "XAUUSD", "XAGUSD", "XAUGBP", "XAGEUR"]
@@ -178,7 +204,7 @@ export default function TradesPage() {
     }
   }, [selectedAsset, getAssetType])
 
-  // SEARCH ASSETS
+  // SEARCH ASSETS - includes API results + recent assets + custom assets
   useEffect(() => {
     const fetchAssets = async () => {
       if (search.length < 1) {
@@ -189,14 +215,41 @@ export default function TradesPage() {
       setLoading(true)
 
       try {
+        // Fetch from API
         const res = await fetch(`/api/search?q=${encodeURIComponent(search)}`)
-        const data = await res.json()
-        
-        if (data && Array.isArray(data)) {
-          setResults(data)
-        } else {
-          setResults([])
-        }
+        const apiResults = await res.json()
+        const apiData = Array.isArray(apiResults) ? apiResults : []
+
+        // Get custom assets
+        const customAssets = getCustomAssets()
+        const matchingCustom = customAssets
+          .filter(a => a.symbol.toUpperCase().includes(search.toUpperCase()))
+          .map(a => ({
+            symbol: a.symbol,
+            name: a.name || a.symbol,
+            exchange: "CUSTOM",
+            type: getAssetType(a.symbol),
+            price: null,
+            change: null,
+          }))
+
+        // Get recent assets that match
+        const matchingRecent = recentAssets
+          .filter(a => a.toUpperCase().includes(search.toUpperCase()))
+          .filter(a => !apiData.find((r: SearchResult) => r.symbol === a))
+          .filter(a => !matchingCustom.find((r: any) => r.symbol === a))
+          .map(a => ({
+            symbol: a,
+            name: a,
+            exchange: "RECENT",
+            type: getAssetType(a),
+            price: null,
+            change: null,
+          }))
+
+        // Combine: API results first, then recent, then custom
+        const combined = [...apiData, ...matchingRecent, ...matchingCustom]
+        setResults(combined)
       } catch (error) {
         console.error("Search error:", error)
         setResults([])
@@ -205,9 +258,9 @@ export default function TradesPage() {
       }
     }
 
-    const delay = setTimeout(fetchAssets, 300)
+    const delay = setTimeout(fetchAssets, 200)
     return () => clearTimeout(delay)
-  }, [search])
+  }, [search, recentAssets])
 
   // FETCH TRADES - Only current user's trades
   const fetchTrades = useCallback(async () => {
@@ -276,7 +329,7 @@ export default function TradesPage() {
     return diff * s
   }, [entry, closePrice, size, sizeUnit, direction])
 
-  // SAVE TRADE - With user_id
+  // SAVE TRADE
   const saveTrade = async () => {
     if (!selectedAsset) {
       showNotification("Please select an asset first", "error")
@@ -329,6 +382,8 @@ export default function TradesPage() {
         console.error("Save trade error:", error)
         showNotification(`Error: ${error.message}`, "error")
       } else {
+        // Save to recent assets
+        saveToRecentAssets(selectedAsset)
         showNotification("Trade saved successfully!", "success")
         setEntry("")
         setClosePrice("")
@@ -368,6 +423,7 @@ export default function TradesPage() {
     const added = addCustomAsset(customSymbol.toUpperCase(), customName)
     
     if (added) {
+      saveToRecentAssets(customSymbol.toUpperCase())
       showNotification(`"${customSymbol.toUpperCase()}" added!`, "success")
       setShowCustomModal(false)
       setCustomSymbol("")
@@ -399,7 +455,7 @@ export default function TradesPage() {
     showNotification(`"${customEmotion}" added`, "success")
   }
 
-  // Select asset from search - auto-fill entry price
+  // Select asset from search - auto-fill entry price, suggest close price
   const selectAsset = (item: SearchResult) => {
     setSelectedAsset(item.symbol)
     setSelectedAssetData(item)
@@ -409,6 +465,18 @@ export default function TradesPage() {
     // Auto-fill entry price with current market price
     if (item.price) {
       setEntry(item.price.toString())
+      // Suggest close price = entry + $5 (or 1% for forex)
+      const assetType = getAssetType(item.symbol)
+      if (assetType === "forex") {
+        setClosePrice((item.price + 0.0005).toFixed(5))
+      } else if (assetType === "crypto") {
+        setClosePrice((item.price + 50).toFixed(2))
+      } else {
+        setClosePrice((item.price + 5).toFixed(2))
+      }
+    } else {
+      setEntry("")
+      setClosePrice("")
     }
   }
 
@@ -424,7 +492,7 @@ export default function TradesPage() {
       <section className="flex-1 p-4 md:p-8 overflow-y-auto">
         {/* Notification */}
         {notification && (
-          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg transition-all animate-bounce ${
+          <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg transition-all ${
             notification.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
           }`}>
             {notification.message}
@@ -468,13 +536,8 @@ export default function TradesPage() {
                   <span className="text-zinc-400">Selected:</span>
                   <b className="text-white text-lg">{selectedAsset}</b>
                   {selectedAssetData?.price && (
-                    <span className={`text-sm font-semibold ${(selectedAssetData.change || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
-                      ${selectedAssetData.price.toFixed(2)}
-                      {selectedAssetData.change !== null && (
-                        <span className="ml-1">
-                          ({(selectedAssetData.change || 0) >= 0 ? "+" : ""}{selectedAssetData.change?.toFixed(2)}%)
-                        </span>
-                      )}
+                    <span className="text-sm text-green-400 font-semibold">
+                      Current: ${selectedAssetData.price.toFixed(2)}
                     </span>
                   )}
                 </div>
@@ -483,10 +546,11 @@ export default function TradesPage() {
                     setSelectedAsset(null)
                     setSelectedAssetData(null)
                     setEntry("")
+                    setClosePrice("")
                   }}
                   className="text-sm text-red-400 hover:text-red-300 transition"
                 >
-                  ✕ Change Asset
+                  ✕ Change
                 </button>
               </div>
             )}
@@ -497,8 +561,9 @@ export default function TradesPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search for any asset... (TSLA, AAPL, BTCUSD, XAUUSD)"
+                  placeholder="Type 2-3 letters to search... (TSLA, AAPL, BTCUSD)"
                   className="w-full p-4 pl-12 bg-zinc-900 border border-zinc-700 rounded-xl focus:border-yellow-500 outline-none transition text-lg"
+                  autoComplete="off"
                 />
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xl">🔍</span>
                 {search && (
@@ -512,11 +577,11 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* SEARCH RESULTS - TradingView Style */}
-            {!selectedAsset && !loading && results && results.length > 0 && (
+            {/* SEARCH RESULTS */}
+            {!selectedAsset && !loading && results.length > 0 && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl overflow-hidden">
                 <div className="p-3 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-wider flex justify-between">
-                  <span>Search Results ({results.length})</span>
+                  <span>Results ({results.length})</span>
                   <span className="text-zinc-600">Click to select</span>
                 </div>
                 {results.map((item, index) => (
@@ -529,6 +594,8 @@ export default function TradesPage() {
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
                         item.type === "crypto" ? "bg-orange-900/30 text-orange-400" :
                         item.type === "forex" ? "bg-blue-900/30 text-blue-400" :
+                        item.exchange === "RECENT" ? "bg-yellow-900/30 text-yellow-400" :
+                        item.exchange === "CUSTOM" ? "bg-purple-900/30 text-purple-400" :
                         "bg-green-900/30 text-green-400"
                       }`}>
                         {item.symbol.charAt(0)}
@@ -536,8 +603,12 @@ export default function TradesPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <b className="text-white group-hover:text-yellow-400 transition">{item.symbol}</b>
-                          <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                            {item.exchange}
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            item.exchange === "RECENT" ? "bg-yellow-900/50 text-yellow-400" :
+                            item.exchange === "CUSTOM" ? "bg-purple-900/50 text-purple-400" :
+                            "bg-zinc-800 text-zinc-400"
+                          }`}>
+                            {item.exchange === "RECENT" ? "Recent" : item.exchange === "CUSTOM" ? "Custom" : item.exchange}
                           </span>
                         </div>
                         <p className="text-sm text-zinc-400">{item.name}</p>
@@ -552,14 +623,6 @@ export default function TradesPage() {
                           {item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%
                         </p>
                       )}
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        item.type === "stock" ? "bg-green-900/50 text-green-400" :
-                        item.type === "forex" ? "bg-blue-900/50 text-blue-400" :
-                        item.type === "crypto" ? "bg-orange-900/50 text-orange-400" :
-                        "bg-zinc-800 text-zinc-400"
-                      }`}>
-                        {item.type?.toUpperCase() || "ASSET"}
-                      </span>
                     </div>
                   </div>
                 ))}
@@ -574,17 +637,16 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* No Results State */}
-            {!loading && results && results.length === 0 && search.length > 0 && (
+            {/* No Results */}
+            {!loading && search.length > 0 && results.length === 0 && (
               <div className="mt-4 bg-zinc-900 border border-zinc-700 rounded-xl p-8 text-center">
                 <p className="text-4xl mb-3">🔍</p>
                 <p className="text-zinc-400 mb-2">No results for "<b className="text-white">{search}</b>"</p>
-                <p className="text-sm text-zinc-500 mb-3">Try a different symbol or add it manually</p>
                 <button
                   onClick={() => setShowCustomModal(true)}
                   className="text-blue-400 hover:text-blue-300 text-sm transition"
                 >
-                  + Add Custom Asset
+                  + Add "{search.toUpperCase()}" as custom asset
                 </button>
               </div>
             )}
@@ -596,7 +658,7 @@ export default function TradesPage() {
                   onClick={() => setShowCustomModal(true)}
                   className="text-sm text-blue-400 hover:text-blue-300 transition"
                 >
-                  + Can't find your asset? Add it manually
+                  + Add custom asset manually
                 </button>
               </div>
             )}
@@ -606,11 +668,6 @@ export default function TradesPage() {
               <div className="mt-6 space-y-6 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
                 <h3 className="text-lg font-bold text-yellow-500 mb-2">
                   New Trade — {selectedAsset}
-                  {selectedAssetData?.price && (
-                    <span className="text-sm font-normal text-zinc-400 ml-2">
-                      Current: ${selectedAssetData.price.toFixed(2)}
-                    </span>
-                  )}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
@@ -628,16 +685,13 @@ export default function TradesPage() {
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">
                       Entry Price
-                      {entry && selectedAssetData?.price && (
-                        <span className="text-xs text-zinc-500 ml-2">
-                          (Market: ${selectedAssetData.price.toFixed(2)})
-                        </span>
+                      {selectedAssetData?.price && (
+                        <span className="text-green-400 text-xs ml-2">← Live market price</span>
                       )}
                     </label>
                     <input
                       type="number"
                       step="any"
-                      placeholder={selectedAssetData?.price ? `Market price: ${selectedAssetData.price.toFixed(2)}` : "Entry price"}
                       value={entry}
                       onChange={(e) => setEntry(e.target.value)}
                       className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
@@ -645,11 +699,17 @@ export default function TradesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">Exit Price</label>
+                    <label className="block text-zinc-400 text-sm mb-1">
+                      Close Price
+                      {entry && closePrice && (
+                        <span className="text-zinc-500 text-xs ml-2">
+                          (Suggested: entry + $5)
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       step="any"
-                      placeholder="Your exit price"
                       value={closePrice}
                       onChange={(e) => setClosePrice(e.target.value)}
                       className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none"
@@ -657,7 +717,7 @@ export default function TradesPage() {
                   </div>
 
                   <div>
-                    <label className="block text-zinc-400 text-sm mb-1">Position Size</label>
+                    <label className="block text-zinc-400 text-sm mb-1">Size</label>
                     <div className="space-y-2">
                       <div className="flex gap-3">
                         <input
@@ -707,18 +767,11 @@ export default function TradesPage() {
                           </button>
                         </div>
                       </div>
-                      {size && (
-                        <p className="text-xs text-zinc-500">
-                          {sizeUnit === "lots" && `📊 Total: ${(parseFloat(size) * 100000).toLocaleString()} units`}
-                          {sizeUnit === "shares" && `📈 Total: ${parseFloat(size).toLocaleString()} shares`}
-                          {sizeUnit === "coins" && `🪙 Total: ${parseFloat(size).toLocaleString()} coins`}
-                        </p>
-                      )}
                     </div>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-zinc-400 text-sm mb-1">How did you feel? (optional)</label>
+                    <label className="block text-zinc-400 text-sm mb-1">Emotion (optional)</label>
                     <select
                       value={emotion}
                       onChange={(e) => {
@@ -745,7 +798,7 @@ export default function TradesPage() {
             {/* PNL DISPLAY */}
             {selectedAsset && entry && closePrice && size && (
               <div className="mt-4 p-4 bg-zinc-900 border border-zinc-800 rounded-xl flex justify-between items-center">
-                <span className="text-zinc-400">Estimated Profit / Loss</span>
+                <span className="text-zinc-400">Estimated P&L</span>
                 <span className={`text-xl font-bold ${calculatePnL() >= 0 ? "text-green-400" : "text-red-400"}`}>
                   {calculatePnL() >= 0 ? "+" : ""}${calculatePnL().toFixed(2)}
                 </span>
@@ -785,7 +838,7 @@ export default function TradesPage() {
                   }}
                   className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600 transition"
                 >
-                  ➕ Pick Different Asset
+                  ➕ New Asset
                 </button>
               </div>
             )}
@@ -793,13 +846,15 @@ export default function TradesPage() {
             {/* TRADE HISTORY */}
             <div className="mt-8 space-y-3">
               <h2 className="text-2xl font-bold mb-4">
-                Your Trade History
-                {trades.length > 0 && <span className="text-sm text-zinc-500 ml-2 font-normal">({trades.length} trades)</span>}
+                Trade History
+                {trades.length > 0 && (
+                  <span className="text-sm text-zinc-500 ml-2 font-normal">({trades.length} trades)</span>
+                )}
               </h2>
               {trades.length === 0 && (
                 <div className="text-center py-12 bg-zinc-900 rounded-2xl border border-zinc-800">
                   <p className="text-4xl mb-4">📝</p>
-                  <p className="text-zinc-400 mb-2">No trades recorded yet</p>
+                  <p className="text-zinc-400 mb-2">No trades yet</p>
                   <p className="text-zinc-500 text-sm">Search for an asset above to get started</p>
                 </div>
               )}
@@ -830,9 +885,7 @@ export default function TradesPage() {
                   <p className="text-sm text-zinc-400 mt-1">
                     Entry: ${t.entry} → Exit: ${t.close_price} • Size: {t.original_size || t.size} {t.size_unit || ""}
                   </p>
-                  {t.emotion && (
-                    <p className="text-sm text-zinc-500 mt-1">🧠 Felt: {t.emotion}</p>
-                  )}
+                  {t.emotion && <p className="text-sm text-zinc-500 mt-1">🧠 {t.emotion}</p>}
                 </div>
               ))}
             </div>
@@ -1017,7 +1070,7 @@ export default function TradesPage() {
               className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700 focus:border-blue-500 outline-none"
             />
             <p className="text-xs text-zinc-500 mb-4">
-              You can add stocks, forex pairs, crypto, or any custom instrument
+              Custom assets appear in your search history for quick access
             </p>
             <div className="flex gap-3">
               <button onClick={handleAddCustomAsset} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold transition">
