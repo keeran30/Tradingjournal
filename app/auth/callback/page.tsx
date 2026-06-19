@@ -1,8 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
 
 export default function AuthPage() {
   const router = useRouter();
@@ -16,8 +21,8 @@ export default function AuthPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
         router.push("/dashboard");
       }
       setCheckingAuth(false);
@@ -33,18 +38,18 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const result = await supabase.auth.signUp({
           email,
           password,
         });
-        if (error) throw error;
+        if (result.error) throw result.error;
         setMessage("Check your email for the confirmation link!");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const result = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (error) throw error;
+        if (result.error) throw result.error;
         router.push("/dashboard");
         router.refresh();
       }
@@ -56,13 +61,13 @@ export default function AuthPage() {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const result = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: window.location.origin + "/dashboard",
       },
     });
-    if (error) setError(error.message);
+    if (result.error) setError(result.error.message);
   };
 
   if (checkingAuth) {
