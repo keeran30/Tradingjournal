@@ -1,15 +1,44 @@
 // /app/api/analytics/route.ts
-import { NextResponse } from "next/server"
-import { supabase } from "@/app/lib/supabase"
+import { NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
-export async function GET() {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+)
+
+export async function GET(req: NextRequest) {
   try {
     console.log("=== AI ANALYTICS STARTED ===")
     
-    // Fetch all trades
+    // Get user from auth header
+    const authHeader = req.headers.get("authorization")
+    let userId = null
+
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "")
+      const { data: { user } } = await supabase.auth.getUser(token)
+      userId = user?.id
+    }
+
+    if (!userId) {
+      const { data: { user } } = await supabase.auth.getUser()
+      userId = user?.id
+    }
+
+    if (!userId) {
+      return NextResponse.json({
+        success: true,
+        totalTrades: 0,
+        message: "Please log in to see analytics"
+      })
+    }
+
+    // Fetch only this user's trades
     const { data: trades, error } = await supabase
       .from("trades")
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -21,7 +50,7 @@ export async function GET() {
       })
     }
 
-    console.log(`Found ${trades?.length || 0} trades`)
+    console.log(`Found ${trades?.length || 0} trades for user ${userId}`)
 
     if (!trades || trades.length === 0) {
       return NextResponse.json({
@@ -61,17 +90,17 @@ export async function GET() {
       if (trade.pnl < 0) assetPnL[asset].losses++
     })
     
-    let bestAsset = { symbol: "", pnl: -Infinity, winRate: 0 }
-    let worstAsset = { symbol: "", pnl: Infinity, winRate: 0 }
+    let bestAsset = { symbol: "", pnl: -Infinity, winRate: 0, trades: 0 }
+    let worstAsset = { symbol: "", pnl: Infinity, winRate: 0, trades: 0 }
     
     Object.keys(assetPnL).forEach(asset => {
       const data = assetPnL[asset]
       const winRateAsset = (data.wins / data.trades) * 100
       if (data.pnl > bestAsset.pnl) {
-        bestAsset = { symbol: asset, pnl: data.pnl, winRate: winRateAsset }
+        bestAsset = { symbol: asset, pnl: data.pnl, winRate: winRateAsset, trades: data.trades }
       }
       if (data.pnl < worstAsset.pnl) {
-        worstAsset = { symbol: asset, pnl: data.pnl, winRate: winRateAsset }
+        worstAsset = { symbol: asset, pnl: data.pnl, winRate: winRateAsset, trades: data.trades }
       }
     })
     
@@ -89,35 +118,29 @@ export async function GET() {
       }
     })
     
-    let bestEmotion = { name: "", winRate: 0, pnl: 0 }
-    let worstEmotion = { name: "", winRate: 100, pnl: 0 }
+    let bestEmotion = { name: "", winRate: 0, pnl: 0, trades: 0 }
+    let worstEmotion = { name: "", winRate: 100, pnl: 0, trades: 0 }
     
     Object.keys(emotionStats).forEach(emotion => {
-      const winRate = (emotionStats[emotion].wins / emotionStats[emotion].total) * 100
-      if (winRate > bestEmotion.winRate) {
-        bestEmotion = { name: emotion, winRate, pnl: emotionStats[emotion].pnl }
+      const wr = (emotionStats[emotion].wins / emotionStats[emotion].total) * 100
+      if (wr > bestEmotion.winRate || (wr === bestEmotion.winRate && emotionStats[emotion].pnl > bestEmotion.pnl)) {
+        bestEmotion = { name: emotion, winRate: wr, pnl: emotionStats[emotion].pnl, trades: emotionStats[emotion].total }
       }
-      if (winRate < worstEmotion.winRate) {
-        worstEmotion = { name: emotion, winRate, pnl: emotionStats[emotion].pnl }
+      if (wr < worstEmotion.winRate) {
+        worstEmotion = { name: emotion, winRate: wr, pnl: emotionStats[emotion].pnl, trades: emotionStats[emotion].total }
       }
     })
     
     // ========== DIRECTION ANALYSIS ==========
-    let buyTrades = 0
-    let buyWins = 0
-    let buyPnL = 0
-    let sellTrades = 0
-    let sellWins = 0
-    let sellPnL = 0
+    let buyTrades = 0, buyWins = 0, buyPnL = 0
+    let sellTrades = 0, sellWins = 0, sellPnL = 0
     
     trades.forEach(trade => {
       if (trade.direction === "Buy") {
-        buyTrades++
-        buyPnL += trade.pnl || 0
+        buyTrades++; buyPnL += trade.pnl || 0
         if (trade.pnl > 0) buyWins++
       } else if (trade.direction === "Sell") {
-        sellTrades++
-        sellPnL += trade.pnl || 0
+        sellTrades++; sellPnL += trade.pnl || 0
         if (trade.pnl > 0) sellWins++
       }
     })
@@ -125,7 +148,25 @@ export async function GET() {
     const buyWinRate = buyTrades > 0 ? (buyWins / buyTrades) * 100 : 0
     const sellWinRate = sellTrades > 0 ? (sellWins / sellTrades) * 100 : 0
     
-    // ========== TIME-BASED ANALYSIS ==========
+    // ========== STREAK ANALYSIS ==========
+    let currentWinStreak = 0, maxWinStreak = 0
+    let currentLossStreak = 0, maxLossStreak = 0
+    
+    trades.slice().reverse().forEach(trade => {
+      if (trade.pnl > 0) {
+        currentWinStreak++; currentLossStreak = 0
+        maxWinStreak = Math.max(maxWinStreak, currentWinStreak)
+      } else if (trade.pnl < 0) {
+        currentLossStreak++; currentWinStreak = 0
+        maxLossStreak = Math.max(maxLossStreak, currentLossStreak)
+      }
+    })
+    
+    // ========== RISK METRICS ==========
+    const profitFactor = avgLoss > 0 ? avgWin / avgLoss : (avgWin > 0 ? 999 : 0)
+    const expectancy = (winRate / 100) * avgWin - ((100 - winRate) / 100) * avgLoss
+    
+    // ========== TIME ANALYSIS ==========
     const tradesByDay: { [key: string]: number } = {}
     trades.forEach(trade => {
       if (trade.created_at) {
@@ -133,164 +174,44 @@ export async function GET() {
         tradesByDay[date] = (tradesByDay[date] || 0) + 1
       }
     })
-    const avgTradesPerDay = Object.keys(tradesByDay).length > 0 
-      ? Object.values(tradesByDay).reduce((a, b) => a + b, 0) / Object.keys(tradesByDay).length 
-      : 0
+    const totalDays = Object.keys(tradesByDay).length
+    const avgTradesPerDay = totalDays > 0 ? trades.length / totalDays : 0
     
-    // ========== STREAK ANALYSIS ==========
-    let currentWinStreak = 0
-    let maxWinStreak = 0
-    let currentLossStreak = 0
-    let maxLossStreak = 0
+    // ========== AI SUGGESTIONS ==========
+    const suggestions: string[] = []
+    const warnings: string[] = []
     
-    trades.slice().reverse().forEach(trade => {
-      if (trade.pnl > 0) {
-        currentWinStreak++
-        currentLossStreak = 0
-        maxWinStreak = Math.max(maxWinStreak, currentWinStreak)
-      } else if (trade.pnl < 0) {
-        currentLossStreak++
-        currentWinStreak = 0
-        maxLossStreak = Math.max(maxLossStreak, currentLossStreak)
-      }
-    })
+    if (winRate < 35) warnings.push("⚠️ Your win rate is below 35%. Review your entry strategy and reduce trade frequency.")
+    else if (winRate < 45) warnings.push("⚠️ Win rate below 45%. Consider smaller position sizes until you improve.")
+    else if (winRate > 65) suggestions.push("🎯 Excellent win rate! Consider scaling up carefully.")
     
-    // ========== GOLD PERFORMANCE ==========
-    const goldTrades = trades.filter(t => t.asset === "XAUUSD")
-    let goldPnL = 0
-    let goldWins = 0
-    goldTrades.forEach(trade => {
-      goldPnL += trade.pnl || 0
-      if (trade.pnl > 0) goldWins++
-    })
-    const goldWinRate = goldTrades.length > 0 ? (goldWins / goldTrades.length) * 100 : 0
+    if (profitFactor > 2) suggestions.push(`💰 Strong profit factor of ${profitFactor.toFixed(2)} — you make $${profitFactor.toFixed(2)} for every $1 lost.`)
+    else if (profitFactor < 1) warnings.push(`📉 Profit factor below 1.0 — losses are bigger than wins. Review your exit strategy.`)
     
-    // ========== RISK METRICS ==========
-    const profitFactor = avgLoss > 0 ? avgWin / avgLoss : 0
-    const expectancy = (winRate / 100) * avgWin - ((100 - winRate) / 100) * avgLoss
+    if (expectancy > 0) suggestions.push(`💡 Positive expectancy: +$${expectancy.toFixed(2)} per trade on average.`)
+    else if (expectancy < 0) warnings.push(`💡 Negative expectancy: -$${Math.abs(expectancy).toFixed(2)} per trade. You need a strategy change.`)
     
-    // ========== AI SUGGESTIONS (ENHANCED) ==========
-    const suggestions = []
-    const warnings = []
-    const tips = []
+    if (bestAsset.symbol && bestAsset.pnl > 0) suggestions.push(`🏆 Best asset: ${bestAsset.symbol} (+$${bestAsset.pnl.toFixed(2)}, ${bestAsset.winRate.toFixed(0)}% win rate)`)
+    if (worstAsset.symbol && worstAsset.pnl < 0 && worstAsset.symbol !== bestAsset.symbol) warnings.push(`❌ Worst asset: ${worstAsset.symbol} (-$${Math.abs(worstAsset.pnl).toFixed(2)}, ${worstAsset.winRate.toFixed(0)}% win rate)`)
     
-    // Win Rate Suggestions
-    if (winRate < 35) {
-      warnings.push("⚠️ CRITICAL: Your win rate is below 35%. Stop trading and review your strategy immediately.")
-    } else if (winRate < 45) {
-      warnings.push("⚠️ Your win rate is below 45%. Consider reducing position sizes until you improve.")
-    } else if (winRate > 65) {
-      suggestions.push("🎯 EXCELLENT: Your win rate exceeds 65%. Consider scaling up carefully.")
-    } else if (winRate > 55) {
-      suggestions.push("📈 GOOD: Your win rate is above 55%. Small improvements could make you highly profitable.")
-    }
+    if (bestEmotion.name && bestEmotion.trades >= 2) suggestions.push(`😊 Best mindset: "${bestEmotion.name}" (${bestEmotion.winRate.toFixed(0)}% win rate)`)
+    if (worstEmotion.name && worstEmotion.trades >= 2 && worstEmotion.name !== bestEmotion.name && worstEmotion.winRate < 50) warnings.push(`😰 Worst mindset: "${worstEmotion.name}" (${worstEmotion.winRate.toFixed(0)}% win rate)`)
     
-    // Profit Factor Suggestions
-    if (profitFactor > 2) {
-      suggestions.push(`💰 EXCELLENT: Your profit factor is ${profitFactor.toFixed(2)} (you make $${profitFactor.toFixed(2)} for every $1 lost).`)
-    } else if (profitFactor > 1.5) {
-      suggestions.push(`📊 GOOD: Your profit factor is ${profitFactor.toFixed(2)}. Focus on maintaining this edge.`)
-    } else if (profitFactor < 1) {
-      warnings.push(`📉 WARNING: Your profit factor is ${profitFactor.toFixed(2)} (you lose more than you make). Review your exit strategy.`)
-    }
-    
-    // Expectancy
-    if (expectancy > 0) {
-      suggestions.push(`💡 Each trade averages $${expectancy.toFixed(2)} profit. With 100 trades, you'd make ~$${(expectancy * 100).toFixed(0)}.`)
-    } else if (expectancy < 0) {
-      warnings.push(`💡 Each trade averages -$${Math.abs(expectancy).toFixed(2)} loss. You need a strategy change.`)
-    }
-    
-    // Asset Performance
-    if (bestAsset.pnl > 0) {
-      suggestions.push(`🏆 Your best asset is ${bestAsset.symbol} with +$${bestAsset.pnl.toFixed(2)} profit (${bestAsset.winRate.toFixed(0)}% win rate).`)
-    }
-    
-    if (worstAsset.pnl < 0 && worstAsset.symbol !== bestAsset.symbol) {
-      warnings.push(`❌ Your worst asset is ${worstAsset.symbol} with -$${Math.abs(worstAsset.pnl).toFixed(2)} loss (${worstAsset.winRate.toFixed(0)}% win rate). Consider avoiding this instrument.`)
-    }
-    
-    // Emotional Analysis
-    if (bestEmotion.name) {
-      suggestions.push(`😊 You trade best when feeling "${bestEmotion.name}" (${bestEmotion.winRate.toFixed(0)}% win rate, +$${bestEmotion.pnl.toFixed(2)}).`)
-    }
-    
-    if (worstEmotion.name && worstEmotion.name !== bestEmotion.name && worstEmotion.winRate < 40) {
-      warnings.push(`😰 Avoid trading when feeling "${worstEmotion.name}" - only ${worstEmotion.winRate.toFixed(0)}% win rate ($${worstEmotion.pnl.toFixed(2)} loss).`)
-    }
-    
-    // Direction Bias
     if (buyTrades > 0 && sellTrades > 0) {
-      if (buyWinRate > sellWinRate + 20) {
-        suggestions.push(`📈 You perform much better on BUY trades (${buyWinRate.toFixed(0)}%) than SELL (${sellWinRate.toFixed(0)}%). Focus on buying opportunities.`)
-      } else if (sellWinRate > buyWinRate + 20) {
-        suggestions.push(`📉 You perform much better on SELL trades (${sellWinRate.toFixed(0)}%) than BUY (${buyWinRate.toFixed(0)}%). Focus on selling opportunities.`)
-      }
+      if (buyWinRate > sellWinRate + 20) suggestions.push(`📈 Better at BUY (${buyWinRate.toFixed(0)}%) than SELL (${sellWinRate.toFixed(0)}%). Focus on longs.`)
+      else if (sellWinRate > buyWinRate + 20) suggestions.push(`📉 Better at SELL (${sellWinRate.toFixed(0)}%) than BUY (${buyWinRate.toFixed(0)}%). Focus on shorts.`)
     }
     
-    // Overtrading
-    if (avgTradesPerDay > 5) {
-      warnings.push(`⚠️ You're trading ${avgTradesPerDay.toFixed(1)} times per day on average. Quality over quantity reduces emotional decisions.`)
-    } else if (avgTradesPerDay > 3) {
-      tips.push(`📊 You average ${avgTradesPerDay.toFixed(1)} trades per day. Consider if each trade meets your criteria.`)
-    }
+    if (avgTradesPerDay > 5) warnings.push(`⚠️ Trading ${avgTradesPerDay.toFixed(1)} times/day. Quality over quantity reduces emotional decisions.`)
+    if (maxWinStreak >= 5) suggestions.push(`🔥 ${maxWinStreak}-trade winning streak! Identify what worked.`)
+    if (maxLossStreak >= 3) warnings.push(`⚠️ ${maxLossStreak}-trade losing streak. Step away after 2 consecutive losses.`)
+    if (avgLoss > avgWin && avgLoss > 0) warnings.push(`🔴 Avg loss ($${avgLoss.toFixed(2)}) > avg win ($${avgWin.toFixed(2)}). Tighten stop losses.`)
     
-    // Streaks
-    if (maxWinStreak >= 5) {
-      suggestions.push(`🔥 You had a ${maxWinStreak}-trade winning streak! Identify what worked and repeat it.`)
-    }
-    if (maxLossStreak >= 3) {
-      warnings.push(`⚠️ You had a ${maxLossStreak}-trade losing streak. Take a break after 2 consecutive losses.`)
-    }
-    
-    // Gold Specific
-    if (goldTrades.length > 0) {
-      if (goldWinRate > 65) {
-        suggestions.push(`🥇 GOLD EXPERT: Your XAUUSD trades have ${goldWinRate.toFixed(0)}% win rate! You have a clear edge in gold trading.`)
-      } else if (goldWinRate < 40) {
-        warnings.push(`🥇 Your Gold (XAUUSD) win rate is ${goldWinRate.toFixed(0)}%. Consider demo trading gold before using real capital.`)
-      } else if (goldTrades.length > 5) {
-        tips.push(`🥇 You've made ${goldTrades.length} gold trades. ${goldWinRate > 50 ? 'Keep refining' : 'Review'} your gold strategy.`)
-      }
-    }
-    
-    // Risk Management
-    if (avgLoss > avgWin && avgLoss > 0) {
-      warnings.push(`🔴 Your average loss ($${avgLoss.toFixed(2)}) is larger than average win ($${avgWin.toFixed(2)}). Use tighter stop losses.`)
-    } else if (avgWin > avgLoss * 2) {
-      suggestions.push(`✅ Your average win ($${avgWin.toFixed(2)}) is ${(avgWin / avgLoss).toFixed(1)}x your average loss. Great risk-reward ratio!`)
-    }
-    
-    // Break-even trades
-    if (breakEvenTrades > trades.length * 0.2) {
-      tips.push(`🎯 ${breakEvenTrades} of your trades were break-even. Small adjustments could turn these into winners.`)
-    }
-    
-    // Total PnL Trend
-    if (totalPnL > 1000) {
-      suggestions.push(`💰 Total profit: $${totalPnL.toFixed(2)}. Track your progress weekly to maintain consistency.`)
-    } else if (totalPnL < -500) {
-      warnings.push(`💸 Total loss: $${Math.abs(totalPnL).toFixed(2)}. Consider paper trading until profitable.`)
-    }
-    
-    // General tips if no specific warnings
-    if (warnings.length === 0 && suggestions.length < 3) {
-      tips.push("📝 Keep journaling every trade - data is your path to consistency.")
-      tips.push("🎯 Set daily loss limits to protect your capital.")
-      tips.push("📊 Review your trades weekly to identify patterns.")
-    }
-    
-    // Add motivational message
     let motivation = ""
-    if (totalPnL > 0 && winRate > 50) {
-      motivation = "🚀 You're on the right track! Consistency is key to long-term success."
-    } else if (totalPnL > 0) {
-      motivation = "📈 Profitable but room for improvement. Focus on your winning setups."
-    } else if (winRate > 50) {
-      motivation = "💪 Your win rate is good but losses are bigger than wins. Work on risk management."
-    } else {
-      motivation = "🌱 Every professional trader started here. Review, adapt, and improve."
-    }
+    if (totalPnL > 0 && winRate > 50) motivation = "🚀 You're on track! Consistency is key to long-term success."
+    else if (totalPnL > 0) motivation = "📈 Profitable but room for improvement. Focus on winning setups."
+    else if (winRate > 50) motivation = "💪 Good win rate but losses are bigger. Work on risk management."
+    else motivation = "🌱 Every professional trader started here. Review, adapt, improve."
 
     const responseData = {
       success: true,
@@ -310,32 +231,12 @@ export async function GET() {
         maxLossStreak,
       },
       assets: {
-        best: bestAsset.symbol ? { 
-          symbol: bestAsset.symbol, 
-          pnl: bestAsset.pnl.toFixed(2), 
-          winRate: bestAsset.winRate.toFixed(1),
-          trades: assetPnL[bestAsset.symbol]?.trades || 0
-        } : null,
-        worst: worstAsset.symbol ? { 
-          symbol: worstAsset.symbol, 
-          pnl: worstAsset.pnl.toFixed(2), 
-          winRate: worstAsset.winRate.toFixed(1),
-          trades: assetPnL[worstAsset.symbol]?.trades || 0
-        } : null,
+        best: bestAsset.symbol ? { symbol: bestAsset.symbol, pnl: bestAsset.pnl.toFixed(2), winRate: bestAsset.winRate.toFixed(1), trades: bestAsset.trades } : null,
+        worst: worstAsset.symbol && worstAsset.symbol !== bestAsset.symbol ? { symbol: worstAsset.symbol, pnl: worstAsset.pnl.toFixed(2), winRate: worstAsset.winRate.toFixed(1), trades: worstAsset.trades } : null,
       },
       emotions: {
-        best: bestEmotion.name ? { 
-          emotion: bestEmotion.name, 
-          winRate: bestEmotion.winRate.toFixed(1), 
-          pnl: bestEmotion.pnl.toFixed(2),
-          trades: emotionStats[bestEmotion.name]?.total || 0
-        } : null,
-        worst: worstEmotion.name ? { 
-          emotion: worstEmotion.name, 
-          winRate: worstEmotion.winRate.toFixed(1), 
-          pnl: worstEmotion.pnl.toFixed(2),
-          trades: emotionStats[worstEmotion.name]?.total || 0
-        } : null,
+        best: bestEmotion.name ? { emotion: bestEmotion.name, winRate: bestEmotion.winRate.toFixed(1), pnl: bestEmotion.pnl.toFixed(2), trades: bestEmotion.trades } : null,
+        worst: worstEmotion.name && worstEmotion.name !== bestEmotion.name ? { emotion: worstEmotion.name, winRate: worstEmotion.winRate.toFixed(1), pnl: worstEmotion.pnl.toFixed(2), trades: worstEmotion.trades } : null,
       },
       direction: {
         buyWinRate: buyWinRate.toFixed(1),
@@ -345,11 +246,6 @@ export async function GET() {
         buyPnL: buyPnL.toFixed(2),
         sellPnL: sellPnL.toFixed(2),
       },
-      gold: goldTrades.length > 0 ? {
-        totalTrades: goldTrades.length,
-        winRate: goldWinRate.toFixed(1),
-        totalPnl: goldPnL.toFixed(2),
-      } : null,
       risk: {
         avgTradesPerDay: avgTradesPerDay.toFixed(1),
         profitFactor: profitFactor.toFixed(2),
@@ -357,11 +253,10 @@ export async function GET() {
       },
       suggestions,
       warnings,
-      tips,
       motivation,
     }
 
-    console.log("Analytics ready:", responseData.summary)
+    console.log("Analytics ready")
     return NextResponse.json(responseData)
 
   } catch (error) {
