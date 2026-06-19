@@ -18,6 +18,7 @@ interface SearchResult {
 }
 
 interface AnalyticsData {
+  success: boolean
   totalTrades: number
   summary: { winRate: string; winningTrades: number; losingTrades: number; totalPnl: string; profitFactor: string; expectancy: string; maxWinStreak: number; maxLossStreak: number }
   assets: { best: { symbol: string; pnl: string; trades: number; winRate: string } | null; worst: { symbol: string; pnl: string; trades: number; winRate: string } | null }
@@ -61,6 +62,7 @@ export default function TradesPage() {
     setNotification({ message, type }); setTimeout(() => setNotification(null), 3000)
   }
 
+  // Check auth
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -69,6 +71,7 @@ export default function TradesPage() {
     }; checkAuth()
   }, [router])
 
+  // Load saved data
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("custom_emotions")
@@ -101,6 +104,7 @@ export default function TradesPage() {
     }
   }, [selectedAsset, getAssetType])
 
+  // Search assets
   useEffect(() => {
     const fetchAssets = async () => {
       if (search.length < 1) { setResults([]); return }
@@ -119,6 +123,7 @@ export default function TradesPage() {
     return () => clearTimeout(delay)
   }, [search, recentAssets])
 
+  // Fetch trades for current user
   const fetchTrades = useCallback(async () => {
     if (!userId) return
     try {
@@ -129,26 +134,28 @@ export default function TradesPage() {
 
   useEffect(() => { if (userId) fetchTrades() }, [userId, fetchTrades])
 
-  const fetchAnalytics = async () => {
+  // Fetch analytics
+  const fetchAnalytics = useCallback(async () => {
+    if (!userId) return
     setLoadingAnalytics(true)
     try {
-      if (!userId) {
-        setAnalytics({ totalTrades: 0, message: "Please log in to see analytics" } as any)
-        setLoadingAnalytics(false)
-        return
-      }
       const res = await fetch(`/api/analytics?userId=${userId}`)
       const data = await res.json()
-      console.log("Analytics data:", data)
+      console.log("Analytics response:", data)
       setAnalytics(data)
     } catch (error) {
       console.error("Failed to fetch analytics:", error)
     } finally {
       setLoadingAnalytics(false)
     }
-  }
+  }, [userId])
 
-  useEffect(() => { if (activeTab === "analytics") fetchAnalytics() }, [activeTab, userId])
+  // Auto-fetch analytics when tab changes
+  useEffect(() => {
+    if (activeTab === "analytics" && userId) {
+      fetchAnalytics()
+    }
+  }, [activeTab, userId, fetchAnalytics])
 
   const calculatePnL = useCallback(() => {
     const e = parseFloat(entry), c = parseFloat(closePrice); let s = parseFloat(size)
@@ -157,6 +164,7 @@ export default function TradesPage() {
     return direction === "Buy" ? (c - e) * s : (e - c) * s
   }, [entry, closePrice, size, sizeUnit, direction])
 
+  // Save trade
   const saveTrade = async () => {
     if (!selectedAsset) { showNotification("Select an asset first", "error"); return }
     if (!entry || !closePrice || !size) { showNotification("Fill all trade fields", "error"); return }
@@ -172,6 +180,7 @@ export default function TradesPage() {
     } catch (err) { showNotification("Failed to save trade", "error") }
   }
 
+  // Delete trade
   const deleteTrade = async (id: string) => {
     try {
       const { error } = await supabase.from("trades").delete().eq("id", id)
@@ -180,6 +189,7 @@ export default function TradesPage() {
     } catch (err) { showNotification("Failed to delete", "error") }
   }
 
+  // Custom asset
   const handleAddCustomAsset = () => {
     if (!customSymbol.trim()) { showNotification("Enter a symbol", "error"); return }
     const added = addCustomAsset(customSymbol.toUpperCase(), customName)
@@ -187,6 +197,7 @@ export default function TradesPage() {
     else { showNotification(`"${customSymbol.toUpperCase()}" already in your custom list`, "error") }
   }
 
+  // Custom emotion
   const handleAddCustomEmotion = () => {
     if (!customEmotion.trim()) { showNotification("Enter an emotion", "error"); return }
     if (allEmotions.includes(customEmotion)) { showNotification("Already exists", "error"); return }
@@ -195,15 +206,49 @@ export default function TradesPage() {
     setCustomEmotion(""); setShowEmotionModal(false); showNotification(`"${customEmotion}" added`, "success")
   }
 
-  const selectAsset = (item: SearchResult) => {
-    setSelectedAsset(item.symbol); setSelectedAssetData(item); setSearch(""); setResults([])
-    if (item.price) {
-      setEntry(item.price.toString())
-      const assetType = getAssetType(item.symbol)
-      if (assetType === "forex") setClosePrice((item.price + 0.0005).toFixed(5))
-      else if (assetType === "crypto") setClosePrice((item.price + 50).toFixed(2))
-      else setClosePrice((item.price + 5).toFixed(2))
-    } else { setEntry(""); setClosePrice("") }
+  // Select asset with live price fetch
+  const selectAsset = async (item: SearchResult) => {
+    setSelectedAsset(item.symbol)
+    setSelectedAssetData(item)
+    setSearch("")
+    setResults([])
+    
+    // Try to get live price
+    try {
+      const res = await fetch(`/api/price?symbol=${item.symbol}`)
+      const priceData = await res.json()
+      
+      if (priceData.price) {
+        setEntry(priceData.price.toString())
+        const assetType = getAssetType(item.symbol)
+        if (assetType === "forex") setClosePrice((priceData.price + 0.0005).toFixed(5))
+        else if (assetType === "crypto") setClosePrice((priceData.price + 50).toFixed(2))
+        else setClosePrice((priceData.price + 5).toFixed(2))
+        
+        setSelectedAssetData({
+          ...item,
+          price: priceData.price,
+          change: priceData.changePercent || priceData.change || null
+        })
+      } else if (item.price) {
+        setEntry(item.price.toString())
+        const assetType = getAssetType(item.symbol)
+        if (assetType === "forex") setClosePrice((item.price + 0.0005).toFixed(5))
+        else if (assetType === "crypto") setClosePrice((item.price + 50).toFixed(2))
+        else setClosePrice((item.price + 5).toFixed(2))
+      } else {
+        setEntry("")
+        setClosePrice("")
+      }
+    } catch (error) {
+      if (item.price) {
+        setEntry(item.price.toString())
+        const assetType = getAssetType(item.symbol)
+        if (assetType === "forex") setClosePrice((item.price + 0.0005).toFixed(5))
+        else if (assetType === "crypto") setClosePrice((item.price + 50).toFixed(2))
+        else setClosePrice((item.price + 5).toFixed(2))
+      }
+    }
   }
 
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
@@ -359,31 +404,43 @@ export default function TradesPage() {
 
         {activeTab === "analytics" && (
           <div className="space-y-6">
-            <div className="flex justify-end"><button onClick={fetchAnalytics} className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition">🔄 Refresh Analytics</button></div>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold">📊 Trading Analytics</h2>
+              <button onClick={fetchAnalytics} className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition">🔄 Refresh</button>
+            </div>
+            
             {loadingAnalytics ? (
               <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your trading patterns...</p></div>
             ) : analytics && analytics.totalTrades > 0 ? (
               <>
                 {analytics.motivation && <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-4 rounded-xl border border-purple-500/30"><p className="text-purple-300 text-center font-medium">{analytics.motivation}</p></div>}
+                
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><p className="text-zinc-400 text-sm">Win Rate</p><p className={`text-3xl font-bold ${parseFloat(analytics.summary.winRate) >= 50 ? 'text-green-400' : 'text-red-400'}`}>{analytics.summary.winRate}%</p><p className="text-xs text-zinc-500 mt-1">{analytics.summary.winningTrades}W / {analytics.summary.losingTrades}L</p></div>
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><p className="text-zinc-400 text-sm">Total P&L</p><p className={`text-3xl font-bold ${parseFloat(analytics.summary.totalPnl) >= 0 ? 'text-green-400' : 'text-red-400'}`}>${analytics.summary.totalPnl}</p></div>
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><p className="text-zinc-400 text-sm">Profit Factor</p><p className={`text-3xl font-bold ${parseFloat(analytics.summary.profitFactor) >= 1.5 ? 'text-green-400' : 'text-yellow-400'}`}>{analytics.summary.profitFactor}</p></div>
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><p className="text-zinc-400 text-sm">Expectancy</p><p className={`text-2xl font-bold ${parseFloat(analytics.summary.expectancy) >= 0 ? 'text-green-400' : 'text-red-400'}`}>${analytics.summary.expectancy}</p></div>
                 </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-green-800/30"><h3 className="font-bold text-green-400 mb-3">🏆 Best Performer</h3>{analytics.assets.best ? <><p className="text-2xl font-bold">{analytics.assets.best.symbol}</p><p className="text-green-400 text-lg">+${analytics.assets.best.pnl}</p><p className="text-sm text-zinc-400">{analytics.assets.best.winRate}% win rate ({analytics.assets.best.trades} trades)</p></> : <p className="text-zinc-500">No data yet</p>}</div>
                   <div className="bg-zinc-900 p-6 rounded-2xl border border-red-800/30"><h3 className="font-bold text-red-400 mb-3">⚠️ Needs Improvement</h3>{analytics.assets.worst ? <><p className="text-2xl font-bold">{analytics.assets.worst.symbol}</p><p className="text-red-400 text-lg">${analytics.assets.worst.pnl}</p><p className="text-sm text-zinc-400">{analytics.assets.worst.winRate}% win rate ({analytics.assets.worst.trades} trades)</p></> : <p className="text-zinc-500">All assets profitable!</p>}</div>
                 </div>
+                
                 {analytics.suggestions && analytics.suggestions.length > 0 && (
                   <div className="bg-blue-950/30 border border-blue-800/50 p-6 rounded-2xl"><h3 className="font-bold text-blue-400 mb-3">💡 AI Insights</h3><ul className="space-y-2">{analytics.suggestions.map((s: string, idx: number) => (<li key={idx} className="text-zinc-300 text-sm flex items-start gap-2"><span className="text-blue-400 mt-0.5">▶</span>{s}</li>))}</ul></div>
                 )}
+                
                 {analytics.warnings && analytics.warnings.length > 0 && (
                   <div className="bg-red-950/20 border border-red-800/30 p-6 rounded-2xl"><h3 className="font-bold text-red-400 mb-3">⚠️ Warnings</h3><ul className="space-y-2">{analytics.warnings.map((w: string, idx: number) => (<li key={idx} className="text-zinc-300 text-sm flex items-start gap-2"><span className="text-red-400 mt-0.5">⚠</span>{w}</li>))}</ul></div>
                 )}
               </>
             ) : (
-              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800"><div className="text-6xl mb-4">🤖</div><p className="text-zinc-400 mb-4">{analytics?.message || "No trades yet. Add some trades to see AI insights!"}</p><button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-2 rounded-xl font-bold hover:bg-yellow-400 transition">Add Your First Trade</button></div>
+              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800">
+                <div className="text-6xl mb-4">🤖</div>
+                <p className="text-zinc-400 mb-4">{analytics?.message || "No trades yet. Add some trades to see AI insights!"}</p>
+                <button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-2 rounded-xl font-bold hover:bg-yellow-400 transition">Add Your First Trade</button>
+              </div>
             )}
           </div>
         )}
