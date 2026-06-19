@@ -18,14 +18,12 @@ interface SearchResult {
 }
 
 interface AnalyticsData {
-  success: boolean; totalTrades: number
-  summary: { winRate: string; winningTrades: number; losingTrades: number; totalPnl: string; profitFactor: string; expectancy: string; maxWinStreak: number; maxLossStreak: number; avgWin: string; avgLoss: string }
-  assets: { best: { symbol: string; pnl: string; trades: number; winRate: string } | null; worst: { symbol: string; pnl: string; trades: number; winRate: string } | null; all: { symbol: string; pnl: string; trades: number; winRate: string }[] }
-  direction: { buyWinRate: string; buyTrades: number; buyPnL: string; sellWinRate: string; sellTrades: number; sellPnL: string }
-  emotions: { best: { emotion: string; winRate: string; pnl: string } | null; worst: { emotion: string; winRate: string; pnl: string } | null }
-  whatIf: { ifCutLossesEarlier: string; ifLetWinnersRun: string; ifNoEmotionTrades: string; ifOnlyBestAsset: string; ifOnlyBestSession: string }
+  success: boolean; totalTrades: number; aiScore: number
+  scores: { discipline: number; riskManagement: number; consistency: number; emotionalControl: number; executionQuality: number }
+  coachSummary: { strongestSkill: string; weakestSkill: string; fastestImprovement: string; highestOpportunity: string }
+  hiddenPatterns: any[]; bestConditions: any; edge: any; accountKillers: any[]
+  emotionalImpact: any[]; performanceMomentum: any; riskIntelligence: any; behavioralAlerts: any[]
   suggestions: string[]; warnings: string[]; motivation: string; message?: string
-  risk: { avgTradesPerDay: string; largestWin: string; largestLoss: string; consecutiveWins: number; consecutiveLosses: number }
 }
 
 export default function TradesPage() {
@@ -36,7 +34,6 @@ export default function TradesPage() {
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
-  const [selectedAssetData, setSelectedAssetData] = useState<SearchResult | null>(null)
   const [direction, setDirection] = useState("Buy")
   const [entry, setEntry] = useState("")
   const [closePrice, setClosePrice] = useState("")
@@ -135,8 +132,10 @@ export default function TradesPage() {
     if (!userId) return
     setLoadingAnalytics(true)
     try {
+      console.log("Fetching analytics for userId:", userId)
       const res = await fetch(`/api/analytics?userId=${userId}`)
       const data = await res.json()
+      console.log("Analytics result:", data)
       setAnalytics(data)
     } catch (e) { console.error(e) } finally { setLoadingAnalytics(false) }
   }, [userId])
@@ -171,25 +170,9 @@ export default function TradesPage() {
     else { showNotification("Deleted", "success"); fetchTrades() }
   }
 
-  const selectAsset = async (item: SearchResult) => {
-    setSelectedAsset(item.symbol); setSelectedAssetData(item); setSearch(""); setResults([])
-    try {
-      const res = await fetch(`/api/price?symbol=${encodeURIComponent(item.symbol)}`)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.price) {
-          setEntry(data.price.toFixed(2))
-          const t = getAssetType(item.symbol)
-          if (t === "forex") setClosePrice((data.price + 0.0005).toFixed(5))
-          else if (t === "crypto") setClosePrice((data.price + 50).toFixed(2))
-          else setClosePrice((data.price + 5).toFixed(2))
-          setSelectedAssetData({ ...item, price: data.price, change: data.change || null })
-          return
-        }
-      }
-    } catch (e) {}
-    if (item.price) { setEntry(item.price.toFixed(2)); setClosePrice((item.price + 5).toFixed(2)) }
-    else { setEntry(""); setClosePrice("") }
+  const selectAsset = (item: SearchResult) => {
+    setSelectedAsset(item.symbol); setSearch(""); setResults([])
+    setEntry(""); setClosePrice("")
   }
 
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
@@ -208,13 +191,12 @@ export default function TradesPage() {
           <button onClick={() => setActiveTab("analytics")} className={`pb-2 px-4 font-bold ${activeTab === "analytics" ? "text-yellow-500 border-b-2 border-yellow-500" : "text-zinc-400"}`}>🤖 AI Analytics</button>
         </div>
 
-        {/* ========== JOURNAL TAB ========== */}
         {activeTab === "journal" && (
           <>
             {selectedAsset && (
               <div className="mb-4 p-4 bg-green-900/20 border border-green-600 rounded-xl flex justify-between items-center">
-                <div><span className="text-zinc-400">Selected: </span><b className="text-white text-lg">{selectedAsset}</b>{selectedAssetData?.price && <span className="text-green-400 ml-2">${selectedAssetData.price.toFixed(2)}</span>}</div>
-                <button onClick={() => { setSelectedAsset(null); setSelectedAssetData(null); setEntry(""); setClosePrice("") }} className="text-red-400 text-sm">✕ Change</button>
+                <div><span className="text-zinc-400">Selected: </span><b className="text-white text-lg">{selectedAsset}</b></div>
+                <button onClick={() => { setSelectedAsset(null); setEntry(""); setClosePrice("") }} className="text-red-400 text-sm">✕ Change</button>
               </div>
             )}
             {!selectedAsset && (
@@ -233,7 +215,6 @@ export default function TradesPage() {
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${item.type === "crypto" ? "bg-orange-900/30 text-orange-400" : item.type === "forex" ? "bg-blue-900/30 text-blue-400" : item.exchange === "RECENT" ? "bg-yellow-900/30 text-yellow-400" : item.exchange === "CUSTOM" ? "bg-purple-900/30 text-purple-400" : "bg-green-900/30 text-green-400"}`}>{item.symbol.charAt(0)}</div>
                       <div><b className="text-white">{item.symbol}</b><span className={`ml-2 text-xs px-2 py-0.5 rounded ${item.exchange === "RECENT" ? "bg-yellow-900/50 text-yellow-400" : item.exchange === "CUSTOM" ? "bg-purple-900/50 text-purple-400" : "bg-zinc-800 text-zinc-400"}`}>{item.exchange === "RECENT" ? "Recent" : item.exchange === "CUSTOM" ? "Custom" : item.exchange}</span><p className="text-sm text-zinc-400">{item.name}</p></div>
                     </div>
-                    <div className="text-right">{item.price && <p className="text-white font-semibold">${item.price.toFixed(2)}</p>}{item.change !== null && item.change !== undefined && <p className={`text-sm ${item.change >= 0 ? "text-green-400" : "text-red-400"}`}>{item.change >= 0 ? "+" : ""}{item.change.toFixed(2)}%</p>}</div>
                   </div>
                 ))}
               </div>
@@ -249,8 +230,8 @@ export default function TradesPage() {
                 <h3 className="text-lg font-bold text-yellow-500">New Trade — {selectedAsset}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div><label className="block text-zinc-400 text-sm mb-1">Direction</label><select value={direction} onChange={(e) => setDirection(e.target.value)} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700"><option value="Buy">🟢 Buy (Long)</option><option value="Sell">🔴 Sell (Short)</option></select></div>
-                  <div><label className="block text-zinc-400 text-sm mb-1">Entry Price</label><input type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder={selectedAssetData?.price ? `Market: ${selectedAssetData.price.toFixed(2)}` : "Entry price"} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
-                  <div><label className="block text-zinc-400 text-sm mb-1">Close Price</label><input type="number" step="any" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder={entry ? `Suggested: ${(parseFloat(entry) + 5).toFixed(2)}` : "Exit price"} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
+                  <div><label className="block text-zinc-400 text-sm mb-1">Entry Price</label><input type="number" step="any" value={entry} onChange={(e) => setEntry(e.target.value)} placeholder="Enter your entry price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
+                  <div><label className="block text-zinc-400 text-sm mb-1">Close Price</label><input type="number" step="any" value={closePrice} onChange={(e) => setClosePrice(e.target.value)} placeholder="Enter your exit price" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700" /></div>
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Size</label>
                     <div className="flex gap-3">
@@ -273,7 +254,7 @@ export default function TradesPage() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <button onClick={saveTrade} className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold">💾 Save</button>
                 <button onClick={() => { setEntry(""); setClosePrice(""); setSize(""); setEmotion("") }} className="bg-zinc-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-700">🔄 Clear</button>
-                <button onClick={() => { setSelectedAsset(null); setSelectedAssetData(null); setEntry(""); setClosePrice(""); setSize(""); setEmotion(""); setSearch(""); setResults([]) }} className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600">➕ New Asset</button>
+                <button onClick={() => { setSelectedAsset(null); setEntry(""); setClosePrice(""); setSize(""); setEmotion(""); setSearch(""); setResults([]) }} className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600">➕ New Asset</button>
               </div>
             )}
             <div className="mt-8 space-y-3">
@@ -290,99 +271,73 @@ export default function TradesPage() {
           </>
         )}
 
-        {/* ========== AI ANALYTICS TAB ========== */}
         {activeTab === "analytics" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center"><h2 className="text-xl font-bold">📊 AI Trading Analytics</h2><button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button></div>
+            <div className="flex justify-between items-center"><h2 className="text-xl font-bold">🤖 AI Analytics</h2><button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button></div>
             
             {loadingAnalytics ? (
-              <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your trades...</p></div>
+              <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your trading data...</p></div>
             ) : analytics && analytics.totalTrades > 0 ? (
               <>
-                {/* Motivation */}
-                {analytics.motivation && <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-4 rounded-xl border border-purple-500/30"><p className="text-purple-300 text-center font-medium">{analytics.motivation}</p></div>}
-
-                {/* Key Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { label: "Win Rate", value: analytics.summary.winRate + "%", color: parseFloat(analytics.summary.winRate) >= 50 ? "text-green-400" : "text-red-400" },
-                    { label: "Total P&L", value: "$" + analytics.summary.totalPnl, color: parseFloat(analytics.summary.totalPnl) >= 0 ? "text-green-400" : "text-red-400" },
-                    { label: "Profit Factor", value: analytics.summary.profitFactor, color: "text-yellow-400" },
-                    { label: "Expectancy", value: "$" + analytics.summary.expectancy + "/trade", color: parseFloat(analytics.summary.expectancy) >= 0 ? "text-green-400" : "text-red-400" },
-                  ].map((m, i) => (
-                    <div key={i} className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 text-center">
-                      <p className="text-zinc-400 text-xs">{m.label}</p>
-                      <p className={`text-xl font-bold ${m.color}`}>{m.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Best/Worst */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analytics.assets.best && (
-                    <div className="bg-green-900/10 border border-green-800/30 p-4 rounded-2xl">
-                      <p className="text-green-400 font-bold text-sm">🏆 Best Asset</p>
-                      <p className="text-xl font-bold">{analytics.assets.best.symbol}</p>
-                      <p className="text-green-400">+${analytics.assets.best.pnl} ({analytics.assets.best.winRate}% win, {analytics.assets.best.trades} trades)</p>
-                    </div>
-                  )}
-                  {analytics.assets.worst && (
-                    <div className="bg-red-900/10 border border-red-800/30 p-4 rounded-2xl">
-                      <p className="text-red-400 font-bold text-sm">⚠️ Worst Asset</p>
-                      <p className="text-xl font-bold">{analytics.assets.worst.symbol}</p>
-                      <p className="text-red-400">${analytics.assets.worst.pnl} ({analytics.assets.worst.winRate}% win)</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* What-If Scenarios */}
-                {analytics.whatIf && (
-                  <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                    <h3 className="font-bold text-yellow-400 mb-4">💭 What-If Analysis</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-400">If you cut losses earlier: </span><span className="text-green-400 font-bold">{analytics.whatIf.ifCutLossesEarlier}</span></div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-400">If you let winners run: </span><span className="text-green-400 font-bold">{analytics.whatIf.ifLetWinnersRun}</span></div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-400">Without emotional trades: </span><span className="text-green-400 font-bold">{analytics.whatIf.ifNoEmotionTrades}</span></div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-400">Only trading best asset: </span><span className="text-green-400 font-bold">{analytics.whatIf.ifOnlyBestAsset}</span></div>
-                    </div>
-                  </div>
-                )}
-
-                {/* AI Suggestions & Warnings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {analytics.suggestions && analytics.suggestions.length > 0 && (
-                    <div className="bg-blue-950/20 border border-blue-800/30 p-5 rounded-2xl">
-                      <h3 className="text-blue-400 font-bold mb-3">💡 What You Should Do</h3>
-                      <ul className="space-y-2">{analytics.suggestions.map((s, i) => <li key={i} className="text-zinc-300 text-sm flex gap-2"><span className="text-blue-400">▶</span>{s}</li>)}</ul>
-                    </div>
-                  )}
-                  {analytics.warnings && analytics.warnings.length > 0 && (
-                    <div className="bg-red-950/20 border border-red-800/30 p-5 rounded-2xl">
-                      <h3 className="text-red-400 font-bold mb-3">⚠️ What To Avoid</h3>
-                      <ul className="space-y-2">{analytics.warnings.map((w, i) => <li key={i} className="text-zinc-300 text-sm flex gap-2"><span className="text-red-400">⚠</span>{w}</li>)}</ul>
-                    </div>
-                  )}
-                </div>
-
-                {/* All Assets Table */}
-                {analytics.assets.all && analytics.assets.all.length > 0 && (
-                  <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-                    <div className="p-4 border-b border-zinc-800 font-bold text-sm">📋 Asset Breakdown</div>
-                    <div className="grid grid-cols-4 gap-2 p-3 text-xs text-zinc-500 font-semibold border-b border-zinc-800"><div>Asset</div><div>Trades</div><div>Win Rate</div><div>P&L</div></div>
-                    {analytics.assets.all.map((a, i) => (
-                      <div key={i} className="grid grid-cols-4 gap-2 p-3 text-sm border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                        <div className="font-bold">{a.symbol}</div><div>{a.trades}</div><div className={parseFloat(a.winRate) >= 50 ? "text-green-400" : "text-red-400"}>{a.winRate}%</div><div className={parseFloat(a.pnl) >= 0 ? "text-green-400" : "text-red-400"}>${a.pnl}</div>
+                {/* AI Score */}
+                <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 text-center">
+                  <p className="text-zinc-400 text-sm mb-2">AI Trading Score</p>
+                  <p className={`text-5xl font-bold ${analytics.aiScore >= 70 ? "text-green-400" : analytics.aiScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{analytics.aiScore}/100</p>
+                  <div className="grid grid-cols-5 gap-2 mt-4 text-xs">
+                    {Object.entries(analytics.scores || {}).map(([key, val]: any) => (
+                      <div key={key} className="bg-zinc-800 p-2 rounded-lg">
+                        <p className="text-zinc-500">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                        <p className="font-bold text-white">{val}</p>
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Coach Summary */}
+                <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
+                  <p className="text-purple-300 font-bold mb-2">🥇 AI Coach Summary</p>
+                  <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary?.strongestSkill}</b></p>
+                  <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary?.weakestSkill}</b></p>
+                  <p className="text-sm text-zinc-300">Top Opportunity: <b className="text-yellow-400">{analytics.coachSummary?.highestOpportunity}</b></p>
+                </div>
+
+                {/* Edge & Conditions */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                    <h3 className="font-bold text-yellow-400 mb-3">🏆 Edge Discovery</h3>
+                    <p className="text-sm text-zinc-300">Best Asset: <b>{analytics.edge?.mostProfitableAsset}</b></p>
+                    <p className="text-sm text-zinc-300">Best Direction: <b>{analytics.edge?.mostProfitableDirection}</b></p>
+                    <p className="text-sm text-green-400 font-bold">+${analytics.edge?.mostProfitableAssetPnL}</p>
+                  </div>
+                  <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                    <h3 className="font-bold text-blue-400 mb-3">⚠️ Account Killers</h3>
+                    {analytics.accountKillers?.length > 0 ? analytics.accountKillers.map((k: any, i: number) => (
+                      <div key={i} className="mb-2"><p className="text-sm text-red-400 font-bold">{k.name}: <span className="text-white">-${k.cost}</span></p><p className="text-xs text-zinc-500">{k.recommendation}</p></div>
+                    )) : <p className="text-sm text-green-400">No major issues detected</p>}
+                  </div>
+                </div>
+
+                {/* Alerts */}
+                {analytics.behavioralAlerts?.length > 0 && (
+                  <div className="bg-red-950/20 border border-red-800/30 p-5 rounded-2xl">
+                    <h3 className="text-red-400 font-bold mb-3">🚨 Live Alerts</h3>
+                    {analytics.behavioralAlerts.map((a: any, i: number) => (
+                      <div key={i} className="flex gap-2 text-sm text-zinc-300 mb-1"><span>⚠️</span>{a.message}</div>
+                    ))}
+                  </div>
                 )}
+
+                {/* Motivation */}
+                <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center">
+                  <p className="text-lg">{analytics.motivation}</p>
+                </div>
               </>
             ) : (
               <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800">
                 <p className="text-6xl mb-4">🤖</p>
                 <p className="text-zinc-400 text-lg mb-2">{analytics?.message || "No trades yet"}</p>
-                <p className="text-zinc-500 mb-4">Add trades to unlock AI-powered insights and what-if scenarios</p>
-                <button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold hover:bg-yellow-400">Add Your First Trade</button>
+                <p className="text-zinc-500 mb-4">Add trades to unlock AI-powered insights</p>
+                <button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button>
               </div>
             )}
           </div>
