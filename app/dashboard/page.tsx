@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "../components/Sidebar";
 import AIAssistant from "../components/AIAssistant";
 import { supabase } from "../lib/supabase";
@@ -16,8 +17,10 @@ interface Trade {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   const showNotification = (message: string, type: "success" | "error") => {
@@ -25,15 +28,26 @@ export default function DashboardPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // Check auth and fetch trades
   useEffect(() => {
-    fetchTrades();
-  }, []);
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/auth");
+        return;
+      }
+      setUserId(user.id);
+      fetchTrades(user.id);
+    };
+    init();
+  }, [router]);
 
-  const fetchTrades = async () => {
+  const fetchTrades = async (uid: string) => {
     try {
       const { data, error } = await supabase
         .from("trades")
         .select("*")
+        .eq("user_id", uid)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -123,9 +137,7 @@ export default function DashboardPage() {
           <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition">
             <h2 className="text-zinc-400 text-sm mb-2">Total Trades</h2>
             <p className="text-4xl font-bold">{totalTrades}</p>
-            {totalTrades > 0 && (
-              <p className="text-xs text-zinc-500 mt-1">{winningTrades}W / {losingTrades}L</p>
-            )}
+            {totalTrades > 0 && <p className="text-xs text-zinc-500 mt-1">{winningTrades}W / {losingTrades}L</p>}
           </div>
           <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 hover:border-zinc-700 transition">
             <h2 className="text-zinc-400 text-sm mb-2">Win Rate</h2>

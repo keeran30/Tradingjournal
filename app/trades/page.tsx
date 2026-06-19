@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import Sidebar from "../components/Sidebar"
 import { supabase } from "../lib/supabase"
 import { addCustomAsset } from "../data/assets"
 import AIAssistant from "../components/AIAssistant"
-import AppLoader from "../components/AppLoader";
+import AppLoader from "../components/AppLoader"
 
 // Types
 interface Trade {
@@ -61,6 +62,12 @@ interface AnalyticsData {
 }
 
 export default function TradesPage() {
+  const router = useRouter()
+  
+  // Auth state
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  
   // Asset search states
   const [search, setSearch] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
@@ -96,6 +103,9 @@ export default function TradesPage() {
   // Notification state
   const [notification, setNotification] = useState<{ message: string; type: "success" | "error" } | null>(null)
 
+  // Page loading state
+  const [pageLoading, setPageLoading] = useState(true)
+
   const defaultEmotions = [
     "😌 Calm",
     "😊 Confident",
@@ -118,6 +128,20 @@ export default function TradesPage() {
     setNotification({ message, type })
     setTimeout(() => setNotification(null), 3000)
   }
+
+  // Check auth
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push("/auth")
+      } else {
+        setUserId(user.id)
+      }
+      setAuthChecked(true)
+    }
+    checkAuth()
+  }, [router])
 
   // Load custom emotions from localStorage
   useEffect(() => {
@@ -184,12 +208,15 @@ export default function TradesPage() {
     return () => clearTimeout(delay)
   }, [search])
 
-  // FETCH TRADES
+  // FETCH TRADES - Only current user's trades
   const fetchTrades = useCallback(async () => {
+    if (!userId) return
+    
     try {
       const { data, error } = await supabase
         .from("trades")
         .select("*")
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
 
       if (error) {
@@ -201,12 +228,16 @@ export default function TradesPage() {
     } catch (err) {
       console.error("Failed to fetch trades:", err)
       setTrades([])
+    } finally {
+      setPageLoading(false)
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
-    fetchTrades()
-  }, [fetchTrades])
+    if (userId) {
+      fetchTrades()
+    }
+  }, [userId, fetchTrades])
 
   // FETCH ANALYTICS
   const fetchAnalytics = async () => {
@@ -244,7 +275,7 @@ export default function TradesPage() {
     return diff * s
   }, [entry, closePrice, size, sizeUnit, direction])
 
-  // SAVE TRADE
+  // SAVE TRADE - With user_id
   const saveTrade = async () => {
     if (!selectedAsset) {
       showNotification("Select an asset first", "error")
@@ -272,7 +303,13 @@ export default function TradesPage() {
 
     const pnl = calculatePnL()
     
+    if (!userId) {
+      showNotification("You must be logged in to save trades", "error")
+      return
+    }
+
     const tradeData = {
+      user_id: userId,
       asset: selectedAsset,
       direction,
       entry: entryNum,
@@ -359,6 +396,11 @@ export default function TradesPage() {
     setCustomEmotion("")
     setShowEmotionModal(false)
     showNotification(`"${customEmotion}" added`, "success")
+  }
+
+  // Show loader while checking auth and loading data
+  if (!authChecked || pageLoading) {
+    return <AppLoader message="Loading Trading Journal" />
   }
 
   return (
@@ -527,6 +569,7 @@ export default function TradesPage() {
             {/* TRADE FORM */}
             {selectedAsset && (
               <div className="mt-6 space-y-6 bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+                <h3 className="text-lg font-bold text-yellow-500 mb-2">New Trade - {selectedAsset}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-zinc-400 text-sm mb-1">Direction</label>
@@ -660,14 +703,41 @@ export default function TradesPage() {
               </div>
             )}
 
-            {/* SAVE BUTTON */}
+            {/* BUTTONS */}
             {selectedAsset && (
-              <button
-                onClick={saveTrade}
-                className="mt-4 bg-yellow-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-yellow-400 transition w-full md:w-auto"
-              >
-                💾 Save Trade
-              </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={saveTrade}
+                  className="bg-yellow-500 text-black px-8 py-3 rounded-xl font-bold hover:bg-yellow-400 transition"
+                >
+                  💾 Save Trade
+                </button>
+                <button
+                  onClick={() => {
+                    setEntry("")
+                    setClosePrice("")
+                    setSize("")
+                    setEmotion("")
+                  }}
+                  className="bg-zinc-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-700 transition"
+                >
+                  🔄 Clear Form
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedAsset(null)
+                    setEntry("")
+                    setClosePrice("")
+                    setSize("")
+                    setEmotion("")
+                    setSearch("")
+                    setResults([])
+                  }}
+                  className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600 transition"
+                >
+                  ➕ New Asset
+                </button>
+              </div>
             )}
 
             {/* TRADE HISTORY */}
