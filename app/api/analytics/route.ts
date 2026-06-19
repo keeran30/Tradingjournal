@@ -1,54 +1,50 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+
+// Use the SAME supabase client that works in your trades page
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId")
   
   if (!userId) {
-    return NextResponse.json({ success: false, totalTrades: 0, message: "No userId provided" })
+    return NextResponse.json({ success: false, totalTrades: 0, message: "No userId" })
   }
 
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+    // Direct fetch instead of Supabase client
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/trades?select=*&user_id=eq.${userId}&order=created_at.desc`,
+      {
+        headers: {
+          "apikey": supabaseKey,
+          "Authorization": `Bearer ${supabaseKey}`,
+          "Content-Type": "application/json",
+        },
+      }
     )
 
-    // Try WITHOUT user_id filter first to see if table is accessible
-    const { data: allTrades, error: allError } = await supabase
-      .from("trades")
-      .select("*")
-      .limit(1)
-
-    console.log("All trades test:", allTrades?.length, allError?.message)
-
-    // Now fetch for specific user
-    const { data: trades, error } = await supabase
-      .from("trades")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-
-    if (error) {
+    if (!response.ok) {
+      const errorText = await response.text()
       return NextResponse.json({ 
         success: false, 
         totalTrades: 0, 
-        message: "Error: " + error.message,
-        userId: userId
+        message: "API error: " + response.status,
+        error: errorText
       })
     }
+
+    const trades = await response.json()
 
     if (!trades || trades.length === 0) {
       return NextResponse.json({ 
         success: true, 
         totalTrades: 0, 
-        message: "No trades found for this user",
-        userId: userId,
-        allTradesInDb: allTrades?.length || 0
+        message: "No trades found" 
       })
     }
 
-    // Stats
+    // Calculate stats
     let totalPnL = 0, wins = 0, losses = 0
     trades.forEach((t: any) => {
       totalPnL += t.pnl || 0
@@ -71,10 +67,6 @@ export async function GET(req: NextRequest) {
     const sorted = Object.entries(assetMap).sort((a, b) => b[1].pnl - a[1].pnl)
     const best = sorted[0]
 
-    const suggestions: string[] = []
-    if (parseFloat(winRate) > 60) suggestions.push("Strong win rate!")
-    if (parseFloat(winRate) < 40) suggestions.push("Review your strategy")
-
     return NextResponse.json({
       success: true,
       totalTrades: trades.length,
@@ -93,11 +85,11 @@ export async function GET(req: NextRequest) {
         worst: null,
       },
       direction: { buyWinRate: "0", buyTrades: 0, buyPnL: "0", sellWinRate: "0", sellTrades: 0, sellPnL: "0" },
-      suggestions,
+      suggestions: parseFloat(winRate) > 50 ? ["Good win rate!"] : ["Keep improving"],
       warnings: [],
-      motivation: totalPnL > 0 ? "You're profitable!" : "Keep learning!",
+      motivation: totalPnL > 0 ? "Profitable!" : "Keep learning!",
     })
   } catch (e: any) {
-    return NextResponse.json({ success: false, totalTrades: 0, message: "Exception: " + e.message })
+    return NextResponse.json({ success: false, totalTrades: 0, message: "Error: " + e.message })
   }
 }
