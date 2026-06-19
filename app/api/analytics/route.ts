@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-)
-
 export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get("userId")
@@ -18,16 +13,33 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Fetch only this user's trades
+    // Create Supabase client with service role (bypasses RLS)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+    
+    console.log("Supabase URL:", supabaseUrl ? "Set" : "Missing")
+    console.log("Supabase Key:", supabaseKey ? "Set" : "Missing")
+    console.log("Looking for userId:", userId)
+
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    // Fetch trades for this user
     const { data: trades, error } = await supabase
       .from("trades")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
 
+    console.log("Trades found:", trades?.length || 0)
+    if (error) console.error("Supabase error:", error)
+
     if (error) {
-      console.error("Supabase error:", error)
-      return NextResponse.json({ success: false, totalTrades: 0, message: "Error fetching data" })
+      return NextResponse.json({ 
+        success: false, 
+        totalTrades: 0, 
+        message: "Error fetching data",
+        error: error.message 
+      })
     }
 
     if (!trades || trades.length === 0) {
@@ -117,8 +129,12 @@ export async function GET(req: NextRequest) {
       warnings,
       motivation,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Analytics error:", error)
-    return NextResponse.json({ success: false, totalTrades: 0, message: "Error" })
+    return NextResponse.json({ 
+      success: false, 
+      totalTrades: 0, 
+      message: "Error: " + (error.message || "Unknown error")
+    })
   }
 }
