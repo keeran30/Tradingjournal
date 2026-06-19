@@ -2,32 +2,39 @@ import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
   try {
-    const stripeKey = process.env.STRIPE_SECRET_KEY
+    // Check all possible env var names
+    const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || ""
+    const priceId = process.env.STRIPE_PRICE_ID || process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || ""
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tradingjournal-flax.vercel.app"
+    
+    console.log("Stripe key exists:", !!stripeKey)
+    console.log("Price ID exists:", !!priceId)
     
     if (!stripeKey) {
-      return NextResponse.json({ error: "Stripe key not found" }, { status: 500 })
+      return NextResponse.json({ 
+        error: "Stripe key not found. Please add STRIPE_SECRET_KEY to Vercel environment variables." 
+      }, { status: 500 })
+    }
+
+    if (!priceId) {
+      return NextResponse.json({ 
+        error: "Price ID not found. Please add STRIPE_PRICE_ID to Vercel environment variables." 
+      }, { status: 500 })
     }
 
     const { userId, email } = await request.json()
-    const priceId = process.env.STRIPE_PRICE_ID
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tradingjournal-flax.vercel.app"
 
-    if (!priceId) {
-      return NextResponse.json({ error: "Price ID not configured" }, { status: 500 })
-    }
-
-    // Use fetch to call Stripe API directly (avoids build issues)
-    const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${stripeKey}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+      headers: { 
+        "Authorization": `Bearer ${stripeKey}`, 
+        "Content-Type": "application/x-www-form-urlencoded" 
       },
       body: new URLSearchParams({
         "payment_method_types[]": "card",
         "mode": "subscription",
-        "customer_email": email,
-        "client_reference_id": userId,
+        "customer_email": email || "",
+        "client_reference_id": userId || "",
         "line_items[0][price]": priceId,
         "line_items[0][quantity]": "1",
         "success_url": `${siteUrl}/settings?payment=success`,
@@ -35,14 +42,18 @@ export async function POST(request: Request) {
       }).toString(),
     })
 
-    const session = await stripeResponse.json()
-
+    const session = await res.json()
+    
     if (session.url) {
       return NextResponse.json({ url: session.url })
-    } else {
-      return NextResponse.json({ error: session.error?.message || "Stripe error" }, { status: 500 })
     }
+    
+    return NextResponse.json({ 
+      error: session.error?.message || "Stripe session creation failed" 
+    }, { status: 500 })
+    
   } catch (e: any) {
+    console.error("Checkout error:", e)
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
