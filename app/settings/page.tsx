@@ -63,7 +63,7 @@ export default function SettingsPage() {
         } else {
           localStorage.setItem("user_settings", JSON.stringify({ isPremium: true }))
         }
-        setMessage("Payment successful! Welcome to Premium 🎉")
+        setMessage("Payment successful! Welcome to Premium")
         setTimeout(() => setMessage(""), 5000)
         window.history.replaceState({}, "", "/settings")
       }
@@ -106,7 +106,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, email: user.email }),
+        body: JSON.stringify({ userId: user?.id, email: user?.email }),
       })
       
       const data = await res.json()
@@ -114,7 +114,7 @@ export default function SettingsPage() {
       if (data.url) {
         window.location.href = data.url
       } else {
-        alert("Error: " + (data.error || "Could not start checkout"))
+        alert("Checkout error: " + (data.error || "Please try again"))
       }
     } catch (e) {
       alert("Something went wrong. Please try again.")
@@ -134,7 +134,7 @@ export default function SettingsPage() {
         localStorage.setItem("user_settings", JSON.stringify(parsed))
       } catch (e) {}
     }
-    setMessage("Subscription cancelled. You'll have access until the end of your billing period.")
+    setMessage("Subscription cancelled.")
     setTimeout(() => setMessage(""), 4000)
   }
 
@@ -144,7 +144,6 @@ export default function SettingsPage() {
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
       <Sidebar />
       <section className="flex-1 p-4 md:p-8 overflow-y-auto">
-        {/* Notification */}
         {message && (
           <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-xl font-bold shadow-lg animate-bounce ${
             message.includes("success") || message.includes("Welcome") ? "bg-green-600 text-white" : 
@@ -157,13 +156,12 @@ export default function SettingsPage() {
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Settings</h1>
         <p className="text-zinc-400 mb-8">Manage your account and trading preferences</p>
 
-        {/* Section Tabs */}
         <div className="flex gap-2 mb-8 border-b border-zinc-800 overflow-x-auto pb-1">
           {[
-            { key: "profile", label: "👤 Profile" },
-            { key: "preferences", label: "⚙️ Preferences" },
-            { key: "subscription", label: "💎 Subscription" },
-            { key: "danger", label: "⚠️ Danger Zone" },
+            { key: "profile", label: "Profile" },
+            { key: "preferences", label: "Preferences" },
+            { key: "subscription", label: "Subscription" },
+            { key: "danger", label: "Danger Zone" },
           ].map(tab => (
             <button
               key={tab.key}
@@ -179,7 +177,7 @@ export default function SettingsPage() {
           ))}
         </div>
 
-        {/* ═══════════ PROFILE ═══════════ */}
+        {/* PROFILE */}
         {activeSection === "profile" && (
           <div className="space-y-6 max-w-2xl">
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
@@ -187,48 +185,27 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-zinc-400 text-sm mb-1">Email</label>
-                  <input 
-                    type="email" 
-                    value={email} 
-                    disabled 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 text-zinc-500 cursor-not-allowed" 
-                  />
-                  <p className="text-xs text-zinc-600 mt-1">Email cannot be changed</p>
+                  <input type="email" value={email} disabled className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 text-zinc-500 cursor-not-allowed" />
                 </div>
                 <div>
                   <label className="block text-zinc-400 text-sm mb-1">Full Name</label>
-                  <input 
-                    type="text" 
-                    value={fullName} 
-                    onChange={(e) => setFullName(e.target.value)} 
-                    placeholder="Your name" 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors" 
-                  />
+                  <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-zinc-400 text-sm mb-1">Trading Style</label>
-                  <select 
-                    value={tradingStyle} 
-                    onChange={(e) => setTradingStyle(e.target.value)} 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors"
-                  >
-                    <option value="">Select your trading style...</option>
+                  <select value={tradingStyle} onChange={(e) => setTradingStyle(e.target.value)} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none">
+                    <option value="">Select style...</option>
                     <option value="day_trader">Day Trader</option>
                     <option value="swing_trader">Swing Trader</option>
                     <option value="scalper">Scalper</option>
                     <option value="position_trader">Position Trader</option>
                     <option value="algo_trader">Algo Trader</option>
-                    <option value="other">Other</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-zinc-400 text-sm mb-1">Experience Level</label>
-                  <select 
-                    value={experience} 
-                    onChange={(e) => setExperience(e.target.value)} 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors"
-                  >
-                    <option value="">Select your experience...</option>
+                  <label className="block text-zinc-400 text-sm mb-1">Experience</label>
+                  <select value={experience} onChange={(e) => setExperience(e.target.value)} className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none">
+                    <option value="">Select experience...</option>
                     <option value="beginner">Beginner (0-1 year)</option>
                     <option value="intermediate">Intermediate (1-3 years)</option>
                     <option value="advanced">Advanced (3-5 years)</option>
@@ -237,186 +214,87 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-            <button 
-              onClick={saveSettings} 
-              disabled={saving} 
-              className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "💾 Save Profile"}
+            <button onClick={saveSettings} disabled={saving} className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition disabled:opacity-50">
+              {saving ? "Saving..." : "Save Profile"}
             </button>
           </div>
         )}
 
-        {/* ═══════════ PREFERENCES ═══════════ */}
+        {/* PREFERENCES */}
         {activeSection === "preferences" && (
           <div className="space-y-6 max-w-2xl">
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4">Trading Preferences</h3>
-              <p className="text-zinc-500 text-sm mb-4">These settings help the AI give you better recommendations.</p>
               <div className="space-y-4">
                 <div>
                   <label className="block text-zinc-400 text-sm mb-1">Daily Loss Limit ($)</label>
-                  <input 
-                    type="number" 
-                    value={dailyLossLimit} 
-                    onChange={(e) => setDailyLossLimit(e.target.value)} 
-                    placeholder="e.g., 500" 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors" 
-                  />
-                  <p className="text-xs text-zinc-500 mt-1">Stop trading when you hit this daily limit</p>
+                  <input type="number" value={dailyLossLimit} onChange={(e) => setDailyLossLimit(e.target.value)} placeholder="e.g., 500" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                 </div>
                 <div>
                   <label className="block text-zinc-400 text-sm mb-1">Risk Per Trade (%)</label>
-                  <input 
-                    type="number" 
-                    value={riskPerTrade} 
-                    onChange={(e) => setRiskPerTrade(e.target.value)} 
-                    placeholder="e.g., 2" 
-                    className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors" 
-                  />
-                  <p className="text-xs text-zinc-500 mt-1">Recommended: 1-2% of your account per trade</p>
+                  <input type="number" value={riskPerTrade} onChange={(e) => setRiskPerTrade(e.target.value)} placeholder="e.g., 2" className="w-full p-4 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
                 </div>
               </div>
             </div>
-
-            <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-              <h3 className="font-bold text-lg mb-4">Display Preferences</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm">Default Size Unit</p>
-                    <p className="text-xs text-zinc-500">Set your preferred unit for trade sizes</p>
-                  </div>
-                  <select className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2 text-sm">
-                    <option>Shares</option>
-                    <option>Lots</option>
-                    <option>Coins</option>
-                  </select>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm">Email Notifications</p>
-                    <p className="text-xs text-zinc-500">Weekly performance summaries</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              onClick={saveSettings} 
-              disabled={saving} 
-              className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "💾 Save Preferences"}
+            <button onClick={saveSettings} disabled={saving} className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold transition disabled:opacity-50">
+              {saving ? "Saving..." : "Save Preferences"}
             </button>
           </div>
         )}
 
-        {/* ═══════════ SUBSCRIPTION ═══════════ */}
+        {/* SUBSCRIPTION */}
         {activeSection === "subscription" && (
           <div className="space-y-6 max-w-3xl">
-            {/* Current Plan */}
             <div className={`p-6 rounded-2xl border ${isPremium ? "bg-yellow-900/20 border-yellow-500/30" : "bg-zinc-900 border-zinc-800"}`}>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="font-bold text-lg flex items-center gap-2">
-                    {isPremium ? "💎 Premium Member" : "🆓 Free Plan"}
-                  </h3>
-                  <p className="text-zinc-400 text-sm">
-                    {isPremium 
-                      ? "You have full access to all premium features" 
-                      : "Upgrade to unlock advanced trading analytics"}
-                  </p>
+                  <h3 className="font-bold text-lg">{isPremium ? "Premium Member" : "Free Plan"}</h3>
+                  <p className="text-zinc-400 text-sm">{isPremium ? "Full access to all features" : "Upgrade for advanced analytics"}</p>
                 </div>
                 {isPremium ? (
                   <div className="flex gap-2">
                     <span className="bg-yellow-500 text-black px-4 py-2 rounded-xl font-bold text-sm">Active</span>
-                    <button 
-                      onClick={handleCancelSubscription}
-                      className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm transition"
-                    >
-                      Cancel
-                    </button>
+                    <button onClick={handleCancelSubscription} className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2 rounded-xl text-sm transition">Cancel</button>
                   </div>
                 ) : (
-                  <button 
-                    onClick={handleUpgrade} 
-                    className="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-3 rounded-xl font-bold transition"
-                  >
-                    Upgrade — $9.99/month
+                  <button onClick={handleUpgrade} className="bg-yellow-500 hover:bg-yellow-400 text-black px-6 py-3 rounded-xl font-bold transition">
+                    Upgrade - $9.99/month
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Feature Comparison */}
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4">Plan Comparison</h3>
               <div className="space-y-3">
                 {[
-                  { feature: "Trade Journal Entries", free: "100 trades", premium: "Unlimited", icon: "📊" },
-                  { feature: "AI Analytics Score", free: "Basic (5 metrics)", premium: "Advanced (20+ metrics)", icon: "🤖" },
-                  { feature: "Leak Tracker", free: "Not included", premium: "Full leak detection", icon: "🔴" },
-                  { feature: "Pre-Market Protocol", free: "Not included", premium: "Daily AI game plan", icon: "📋" },
-                  { feature: "Ghost Equity Curve", free: "Not included", premium: "Visual what-if analysis", icon: "👻" },
-                  { feature: "Edge Discovery", free: "Basic", premium: "Advanced pattern detection", icon: "🏆" },
-                  { feature: "Export Reports", free: "CSV only", premium: "CSV, PDF, JSON", icon: "📥" },
-                  { feature: "Priority Support", free: "Community forum", premium: "Direct chat support", icon: "💬" },
+                  { feature: "Trade Entries", free: "100 trades", premium: "Unlimited" },
+                  { feature: "AI Analytics", free: "Basic", premium: "Advanced + Leak Tracker" },
+                  { feature: "Pre-Market Protocol", free: "Not included", premium: "Daily AI game plan" },
+                  { feature: "Ghost Equity Curve", free: "Not included", premium: "Visual analysis" },
+                  { feature: "Edge Discovery", free: "Basic", premium: "Advanced patterns" },
+                  { feature: "Export Reports", free: "CSV only", premium: "CSV, PDF, JSON" },
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-zinc-800/40 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{item.icon}</span>
-                      <span className="text-sm font-medium">{item.feature}</span>
-                    </div>
+                  <div key={i} className="flex justify-between p-3 bg-zinc-800/40 rounded-xl">
+                    <span className="text-sm">{item.feature}</span>
                     <div className="flex gap-4 text-sm">
-                      <span className="text-zinc-500 w-24 text-center">{item.free}</span>
-                      <span className="text-yellow-400 font-bold w-32 text-center">{item.premium}</span>
+                      <span className="text-zinc-500">{item.free}</span>
+                      <span className="text-yellow-400 font-bold">{item.premium}</span>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-
-            {/* Billing Info */}
-            {isPremium && (
-              <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <h3 className="font-bold text-lg mb-4">Billing Information</h3>
-                <div className="space-y-2 text-sm">
-                  <p className="text-zinc-400">Plan: <span className="text-white font-bold">Premium Monthly</span></p>
-                  <p className="text-zinc-400">Price: <span className="text-white font-bold">$9.99/month</span></p>
-                  <p className="text-zinc-400">Next billing date: <span className="text-white">{new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span></p>
-                  <p className="text-zinc-400">Payment method: <span className="text-white">Visa •••• 4242</span></p>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ═══════════ DANGER ZONE ═══════════ */}
+        {/* DANGER ZONE */}
         {activeSection === "danger" && (
           <div className="space-y-6 max-w-2xl">
             <div className="bg-red-950/20 border border-red-500/30 p-6 rounded-2xl">
-              <h3 className="font-bold text-red-400 text-lg mb-2">⚠️ Delete Account</h3>
-              <p className="text-zinc-400 text-sm mb-4">
-                Once you delete your account, there is no going back. All your trades, analytics, and settings will be permanently removed from our servers.
-              </p>
-              <div className="bg-red-900/20 border border-red-800/30 p-4 rounded-xl mb-4">
-                <p className="text-red-300 text-sm font-bold mb-1">This action will:</p>
-                <ul className="text-xs text-red-400 space-y-1">
-                  <li>• Permanently delete all your trade records</li>
-                  <li>• Remove your account and login credentials</li>
-                  <li>• Cancel any active subscriptions</li>
-                  <li>• Delete all your AI analytics data</li>
-                </ul>
-              </div>
-              <button 
-                onClick={handleDeleteAccount} 
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition"
-              >
+              <h3 className="font-bold text-red-400 text-lg mb-2">Delete Account</h3>
+              <p className="text-zinc-400 text-sm mb-4">This permanently deletes all your trades, analytics, and account data.</p>
+              <button onClick={handleDeleteAccount} className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold transition">
                 Delete My Account Permanently
               </button>
             </div>
