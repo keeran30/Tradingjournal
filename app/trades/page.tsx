@@ -352,7 +352,7 @@ export default function TradesPage() {
                         <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">${analytics.summary.totalPnL}</p><p className="text-xs text-zinc-500">P&L</p></div>
                       </div>
                       {analytics.aiScore && <p className="text-yellow-400 font-bold text-lg mb-4">AI Score: {analytics.aiScore}/100</p>}
-                      {analytics.teasers?.leakCount > 0 && (
+                      {analytics.teasers && analytics.teasers.leakCount > 0 && (
                         <div className="bg-red-900/20 border border-red-800/30 p-3 rounded-xl mb-4">
                           <p className="text-red-400 font-bold">🔴 {analytics.teasers.leakCount} behavioral leak(s) detected</p>
                           <p className="text-zinc-400 text-xs mt-1">These are costing you real money. Premium reveals exactly what they are and how to fix them.</p>
