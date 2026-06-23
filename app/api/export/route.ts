@@ -1,0 +1,61 @@
+import { NextResponse } from "next/server"
+
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const userId = url.searchParams.get("userId")
+  const format = url.searchParams.get("format") || "txt"
+  
+  if (!userId) return NextResponse.json({ error: "No userId" }, { status: 400 })
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/trades?select=*&user_id=eq.${userId}&order=created_at.desc`, {
+      headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` }
+    })
+    const trades = await res.json()
+    
+    if (!trades || trades.length === 0) {
+      return NextResponse.json({ error: "No trades to export" }, { status: 400 })
+    }
+
+    if (format === "csv") {
+      const headers = "Date,Asset,Direction,Entry,Exit,Size,P&L,Emotion\n"
+      const rows = trades.map((t: any) => 
+        `${t.created_at?.split("T")[0] || ""},${t.asset},${t.direction},${t.entry},${t.close_price},${t.size},${t.pnl || 0},${t.emotion || ""}`
+      ).join("\n")
+      return new NextResponse(headers + rows, {
+        headers: {
+          "Content-Type": "text/csv",
+          "Content-Disposition": `attachment; filename="tradevault_trades_${new Date().toISOString().split("T")[0]}.csv"`,
+        },
+      })
+    }
+
+    if (format === "txt") {
+      const totalPnL = trades.reduce((a: number, t: any) => a + (t.pnl || 0), 0)
+      const wins = trades.filter((t: any) => t.pnl > 0).length
+      const content = `TRADEVAULT - TRADE EXPORT
+Generated: ${new Date().toISOString().split("T")[0]}
+Total Trades: ${trades.length}
+Win Rate: ${((wins / trades.length) * 100).toFixed(1)}%
+Total P&L: $${totalPnL.toFixed(2)}
+
+${trades.map((t: any) => 
+  `${t.created_at?.split("T")[0] || "N/A"} | ${t.asset} | ${t.direction} | Entry: $${t.entry} | Exit: $${t.close_price} | Size: ${t.size} | P&L: $${(t.pnl || 0).toFixed(2)} | ${t.emotion || "N/A"}`
+).join("\n")}`
+
+      return new NextResponse(content, {
+        headers: {
+          "Content-Type": "text/plain",
+          "Content-Disposition": `attachment; filename="tradevault_trades_${new Date().toISOString().split("T")[0]}.txt"`,
+        },
+      })
+    }
+
+    return NextResponse.json({ error: "Invalid format" }, { status: 400 })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}

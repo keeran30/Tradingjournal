@@ -83,7 +83,6 @@ export default function TradesPage() {
         if (savedAssets) setRecentAssets(JSON.parse(savedAssets))
         const settings = localStorage.getItem("user_settings")
         if (settings) setIsPremium(JSON.parse(settings).isPremium || false)
-        // AI chat count for today
         const today = new Date().toISOString().split("T")[0]
         const chatData = JSON.parse(localStorage.getItem("ai_chats") || "{}")
         setAiChatsToday(chatData[today] || 0)
@@ -194,21 +193,6 @@ export default function TradesPage() {
     setEntry(""); setClosePrice("")
   }
 
-  // Track AI chat usage
-  const trackAiChat = () => {
-    if (isPremium) return true
-    if (aiChatsToday >= MAX_FREE_AI_CHATS) {
-      showNotification(`AI chat limit reached (${MAX_FREE_AI_CHATS}/day). Upgrade for unlimited.`, "upgrade")
-      return false
-    }
-    const today = new Date().toISOString().split("T")[0]
-    const chatData = JSON.parse(localStorage.getItem("ai_chats") || "{}")
-    chatData[today] = (chatData[today] || 0) + 1
-    localStorage.setItem("ai_chats", JSON.stringify(chatData))
-    setAiChatsToday(chatData[today])
-    return true
-  }
-
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
 
   return (
@@ -254,7 +238,7 @@ export default function TradesPage() {
           <>
             {!isPremium && trades.length >= 40 && (
               <div className="mb-4 p-4 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-600/30 rounded-xl">
-                <p className="text-yellow-400 text-sm font-bold">⚠️ Almost at limit ({trades.length}/{MAX_FREE_TRADES})</p>
+                <p className="text-yellow-400 text-sm font-bold">Almost at limit ({trades.length}/{MAX_FREE_TRADES})</p>
                 <button onClick={() => router.push("/settings")} className="mt-2 bg-yellow-500 text-black px-4 py-1.5 rounded-lg text-xs font-bold">Upgrade — $9.99/mo</button>
               </div>
             )}
@@ -322,8 +306,22 @@ export default function TradesPage() {
                 <button onClick={() => { setSelectedAsset(null); setEntry(""); setClosePrice(""); setSize(""); setEmotion(""); setSearch(""); setResults([]) }} className="bg-zinc-700 text-white px-6 py-3 rounded-xl font-bold hover:bg-zinc-600">➕ New Asset</button>
               </div>
             )}
+
+            {/* TRADE HISTORY */}
             <div className="mt-8 space-y-3">
               <h2 className="text-2xl font-bold">Trade History{trades.length > 0 && <span className="text-sm text-zinc-500 ml-2">({trades.length}{!isPremium && ` / ${MAX_FREE_TRADES}`})</span>}</h2>
+              
+              {/* Export Buttons */}
+              {trades.length > 0 && (
+                <div className="flex gap-2 mb-3 flex-wrap">
+                  <button onClick={() => window.open(`/api/export?userId=${userId}&format=txt`, "_blank")} className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs transition">📄 TXT</button>
+                  <button onClick={() => window.open(`/api/export?userId=${userId}&format=csv`, "_blank")} className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs transition">📊 CSV</button>
+                  {isPremium && (
+                    <button onClick={() => window.print()} className="bg-yellow-500 hover:bg-yellow-400 text-black px-3 py-1.5 rounded-lg text-xs font-bold transition">🖨️ Print / PDF</button>
+                  )}
+                </div>
+              )}
+
               {trades.length === 0 && <div className="text-center py-12 bg-zinc-900 rounded-2xl border border-zinc-800"><p className="text-4xl mb-4">📝</p><p className="text-zinc-400">No trades yet</p></div>}
               {trades.map(t => (
                 <div key={t.id} className="p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition group">
@@ -339,53 +337,109 @@ export default function TradesPage() {
         {activeTab === "analytics" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center"><h2 className="text-xl font-bold">🤖 AI Analytics {isPremium ? "— Premium" : "— Free"}</h2><button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button></div>
-            {loadingAnalytics ? <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Crunching numbers...</p></div>
+            {loadingAnalytics ? <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Analyzing your data...</p></div>
             : analytics && analytics.totalTrades > 0 ? (
               <>
-                {!isPremium && analytics.teasers && (
-                  <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-500/30 p-5 rounded-2xl">
-                    <h3 className="font-bold text-yellow-400 text-lg mb-2">🔒 Premium Features Locked</h3>
-                    <p className="text-zinc-300 text-sm mb-3">{analytics.teasers.message}</p>
-                    <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">{analytics.summary.totalTrades}</p><p className="text-xs text-zinc-500">Trades</p></div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-green-400">{analytics.summary.winRate}</p><p className="text-xs text-zinc-500">Win Rate</p></div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">${analytics.summary.totalPnL}</p><p className="text-xs text-zinc-500">P&L</p></div>
+                {!isPremium && (
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-500/30 p-6 rounded-2xl text-center">
+                      <p className="text-4xl mb-3">🔒</p>
+                      <h3 className="font-bold text-yellow-400 text-xl mb-2">Unlock Your Trading Edge</h3>
+                      <p className="text-zinc-300 mb-4">Premium traders earn 3x more insights. See exactly where you're losing money and how to fix it.</p>
+                      <div className="grid grid-cols-3 gap-3 mb-4">
+                        <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">{analytics.summary.totalTrades}</p><p className="text-xs text-zinc-500">Trades</p></div>
+                        <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-green-400">{analytics.summary.winRate}</p><p className="text-xs text-zinc-500">Win Rate</p></div>
+                        <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">${analytics.summary.totalPnL}</p><p className="text-xs text-zinc-500">P&L</p></div>
+                      </div>
+                      {analytics.aiScore && <p className="text-yellow-400 font-bold text-lg mb-4">AI Score: {analytics.aiScore}/100</p>}
+                      {analytics.teasers?.leakCount > 0 && (
+                        <div className="bg-red-900/20 border border-red-800/30 p-3 rounded-xl mb-4">
+                          <p className="text-red-400 font-bold">🔴 {analytics.teasers.leakCount} behavioral leak(s) detected</p>
+                          <p className="text-zinc-400 text-xs mt-1">These are costing you real money. Premium reveals exactly what they are and how to fix them.</p>
+                        </div>
+                      )}
+                      <button onClick={() => router.push("/settings")} className="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-xl font-bold text-lg transition w-full md:w-auto">Upgrade to Premium — $9.99/mo</button>
+                      <p className="text-zinc-500 text-xs mt-3">30-day money-back guarantee. Cancel anytime.</p>
                     </div>
-                    {analytics.aiScore && (
-                      <div className="text-center mb-3"><p className="text-zinc-400 text-xs">AI Score</p><p className="text-3xl font-bold text-yellow-400">{analytics.aiScore}/100</p></div>
-                    )}
-                    <button onClick={() => router.push("/settings")} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-3 rounded-xl font-bold transition">Upgrade to Premium — $9.99/month</button>
                   </div>
                 )}
 
                 {isPremium && (
                   <>
                     {analytics.aiScore && (
-                      <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 text-center">
-                        <p className="text-zinc-400 text-sm mb-2">AI Trading Score</p>
-                        <p className={`text-5xl font-bold ${analytics.aiScore >= 70 ? "text-green-400" : analytics.aiScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{analytics.aiScore}/100</p>
+                      <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 rounded-2xl border border-zinc-700 text-center">
+                        <p className="text-zinc-400 text-sm mb-2">🏆 AI Trading Score</p>
+                        <p className={`text-6xl font-bold ${analytics.aiScore >= 70 ? "text-green-400" : analytics.aiScore >= 50 ? "text-yellow-400" : "text-red-400"}`}>{analytics.aiScore}</p>
+                        <p className="text-zinc-500 text-sm mt-1">out of 100</p>
                         {analytics.scores && (
-                          <div className="grid grid-cols-5 gap-2 mt-4 text-xs">
+                          <div className="grid grid-cols-5 gap-2 mt-4">
                             {Object.entries(analytics.scores).map(([key, val]: any) => (
-                              <div key={key} className="bg-zinc-800 p-2 rounded-lg"><p className="text-zinc-500">{key.replace(/([A-Z])/g, ' $1').trim()}</p><p className="font-bold text-white">{val}</p></div>
+                              <div key={key} className="bg-black/30 p-3 rounded-xl">
+                                <div className="w-full bg-zinc-700 rounded-full h-1.5 mb-1"><div className={`h-1.5 rounded-full ${val >= 70 ? "bg-green-500" : val >= 40 ? "bg-yellow-500" : "bg-red-500"}`} style={{width: `${val}%`}} /></div>
+                                <p className="text-zinc-500 text-xs">{key.replace(/([A-Z])/g, ' $1').trim().slice(0, 12)}</p>
+                                <p className="font-bold text-white text-sm">{val}</p>
+                              </div>
                             ))}
                           </div>
                         )}
                       </div>
                     )}
-                    {analytics.coachSummary && (
-                      <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
-                        <p className="text-purple-300 font-bold mb-2">🥇 AI Coach</p>
-                        <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary.strongestSkill}</b></p>
-                        <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary.weakestSkill}</b></p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {analytics.coachSummary && (
+                        <div className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
+                          <h3 className="text-purple-300 font-bold text-lg mb-3">🥇 Your Strengths</h3>
+                          <p className="text-green-400 font-bold text-lg">{analytics.coachSummary.strongestSkill}</p>
+                          <p className="text-zinc-300 text-sm mt-1">This is your competitive advantage.</p>
+                          <div className="mt-3 pt-3 border-t border-purple-500/20">
+                            <p className="text-red-400 font-bold">⚠️ Needs Work</p>
+                            <p className="text-zinc-300 text-sm">{analytics.coachSummary.weakestSkill}</p>
+                          </div>
+                        </div>
+                      )}
+                      {analytics.leakTracker && (
+                        <div className={`p-5 rounded-2xl border ${parseFloat(analytics.leakTracker.totalLeakCost || "0") > 0 ? "bg-red-950/20 border-red-500/30" : "bg-green-950/20 border-green-500/30"}`}>
+                          <h3 className="font-bold text-lg mb-3">💰 Money You're Leaving</h3>
+                          {analytics.leakTracker.leaks?.length > 0 ? analytics.leakTracker.leaks.map((leak: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 bg-zinc-800/50 p-3 rounded-xl mb-2">
+                              <span className="text-2xl">{leak.icon || "⚠️"}</span>
+                              <div><p className="font-bold text-sm text-red-400">-${leak.cost?.toFixed?.(2) || leak.cost}</p><p className="text-xs text-zinc-400">{leak.description}</p></div>
+                            </div>
+                          )) : <p className="text-green-400 text-sm">No leaks detected!</p>}
+                        </div>
+                      )}
+                    </div>
+
+                    {analytics.preMarketProtocol && (
+                      <div className="bg-blue-950/20 border border-blue-500/30 p-5 rounded-2xl">
+                        <h3 className="font-bold text-blue-400 text-lg mb-3">📋 Today's Game Plan</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Position Size</p><p className="font-bold text-white">{analytics.preMarketProtocol.maxPositionSize}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Best Setup</p><p className="font-bold text-green-400">{analytics.preMarketProtocol.bestSetup}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Avoid</p><p className="font-bold text-red-400">{analytics.preMarketProtocol.deadZones}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Discipline</p><p className="font-bold text-white">{analytics.preMarketProtocol.disciplineScore}/100</p></div>
+                        </div>
                       </div>
                     )}
-                    {analytics.motivation && <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center"><p className="text-lg">{analytics.motivation}</p></div>}
+
+                    {analytics.edge && (
+                      <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
+                        <h3 className="font-bold text-yellow-400 text-lg mb-3">🎯 Your Statistical Edge</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Best Asset</p><p className="font-bold text-white text-lg">{analytics.edge.mostProfitableAsset}</p><p className="text-green-400 text-sm">+${analytics.edge.mostProfitableAssetPnL}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Direction</p><p className="font-bold text-white text-lg">{analytics.edge.mostProfitableDirection}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Best Win Rate</p><p className="font-bold text-green-400 text-lg">{analytics.edge.bestWinRate}%</p><p className="text-zinc-400 text-sm">{analytics.edge.bestWinRateAsset}</p></div>
+                          <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-zinc-500 text-xs">Overall P&L</p><p className={`font-bold text-lg ${parseFloat(analytics.summary.totalPnL) >= 0 ? "text-green-400" : "text-red-400"}`}>${analytics.summary.totalPnL}</p></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {analytics.motivation && <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center"><p className="text-lg font-medium">{analytics.motivation}</p></div>}
                   </>
                 )}
               </>
             ) : (
-              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800"><p className="text-6xl mb-4">🤖</p><p className="text-zinc-400">{analytics?.message || "No trades yet"}</p><button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button></div>
+              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800"><p className="text-6xl mb-4">🤖</p><p className="text-zinc-400 text-lg mb-2">{analytics?.message || "No trades yet"}</p><button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button></div>
             )}
           </div>
         )}
@@ -395,7 +449,7 @@ export default function TradesPage() {
 
       {showEmotionModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmotionModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Emotion</h3><input type="text" placeholder="e.g., Euphoric" value={customEmotion} onChange={e => setCustomEmotion(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" autoFocus /><div className="flex gap-3"><button onClick={() => { if(!customEmotion.trim()||allEmotions.includes(customEmotion))return; const u=[...customEmotions,customEmotion]; setCustomEmotions(u); localStorage.setItem("custom_emotions",JSON.stringify(u)); setCustomEmotion(""); setShowEmotionModal(false); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowEmotionModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
 
-      <AIAssistant /> 59aea6dd96a6f82668aacfbdda0bd2ef0e90074d
+      <AIAssistant />
     </main>
   )
 }

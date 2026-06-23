@@ -22,16 +22,11 @@ export default function ContactPage() {
       <Sidebar />
       <section className="flex-1 p-4 md:p-8 overflow-y-auto">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Contact Us</h1>
-        <p className="text-zinc-400 mb-8">Have questions? We're here to help.</p>
-
+        <p className="text-zinc-400 mb-8">Questions? We're here to help.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
           <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
             <h3 className="font-bold text-lg mb-4">Send a Message</h3>
-            {sent ? (
-              <div className="bg-green-900/30 border border-green-500/30 p-4 rounded-xl text-green-400">
-                Message sent! We'll reply within 24 hours.
-              </div>
-            ) : (
+            {sent ? <div className="bg-green-900/30 border border-green-500/30 p-4 rounded-xl text-green-400">Message sent! We'll reply within 24 hours.</div> : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div><label className="block text-zinc-400 text-sm mb-1">Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required /></div>
                 <div><label className="block text-zinc-400 text-sm mb-1">Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required /></div>
@@ -41,14 +36,12 @@ export default function ContactPage() {
               </form>
             )}
           </div>
-
           <div className="space-y-6">
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4">Contact Info</h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-3"><span className="text-2xl">📧</span><div><p className="text-zinc-400 text-sm">Email</p><p className="text-white font-medium">support@tradevault.pro</p></div></div>
                 <div className="flex items-center gap-3"><span className="text-2xl">📞</span><div><p className="text-zinc-400 text-sm">Phone</p><p className="text-white font-medium">+1 (555) 123-4567</p></div></div>
-                <div className="flex items-center gap-3"><span className="text-2xl">⏰</span><div><p className="text-zinc-400 text-sm">Response Time</p><p className="text-white font-medium">Within 24 hours</p></div></div>
               </div>
             </div>
           </div>
