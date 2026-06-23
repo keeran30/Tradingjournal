@@ -20,10 +20,10 @@ interface SearchResult {
 interface AnalyticsData {
   success: boolean; totalTrades: number; isPremium: boolean
   summary: { totalPnL: string; winRate: string; totalTrades: number; winningTrades: number; losingTrades: number }
-  teasers?: { leakCount: number; message: string; preview: { winRate: number; totalPnL: string; potentialSavings: string } }
-  aiScore?: number; scores?: any; coachSummary?: any; leakTracker?: any; preMarketProtocol?: any
-  edge?: any; accountKillers?: any[]; behavioralAlerts?: any[]
-  suggestions?: string[]; warnings?: string[]; motivation?: string; message?: string
+  scores?: any; aiScore?: number; coachSummary?: any; emotionImpact?: any[]
+  teasers?: { leakCount: number; message: string }
+  leakTracker?: any; preMarketProtocol?: any; edge?: any
+  motivation?: string; message?: string
 }
 
 export default function TradesPage() {
@@ -54,13 +54,15 @@ export default function TradesPage() {
   const [pageLoading, setPageLoading] = useState(true)
   const [recentAssets, setRecentAssets] = useState<string[]>([])
   const [isPremium, setIsPremium] = useState(false)
+  const [aiChatsToday, setAiChatsToday] = useState(0)
 
   const MAX_FREE_TRADES = 50
+  const MAX_FREE_AI_CHATS = 10
   const defaultEmotions = ["😌 Calm","😊 Confident","🤔 Hesitant","😰 Anxious","😤 Impatient","😨 Fearful","🤑 Greedy","😓 Stressed","😎 Overconfident","🤷 Unsure","🎯 Focused","😴 Tired"]
   const allEmotions = [...defaultEmotions, ...customEmotions]
 
-  const showNotification = (message: string, type: "success" | "error" | "upgrade") => {
-    setNotification({ message, type })
+  const showNotification = (msg: string, type: "success" | "error" | "upgrade") => {
+    setNotification({ message: msg, type })
     setTimeout(() => setNotification(null), 4000)
   }
 
@@ -68,10 +70,8 @@ export default function TradesPage() {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push("/auth"); return }
-      setUserId(user.id)
-      setAuthChecked(true)
-    }
-    checkAuth()
+      setUserId(user.id); setAuthChecked(true)
+    }; checkAuth()
   }, [router])
 
   useEffect(() => {
@@ -83,14 +83,17 @@ export default function TradesPage() {
         if (savedAssets) setRecentAssets(JSON.parse(savedAssets))
         const settings = localStorage.getItem("user_settings")
         if (settings) setIsPremium(JSON.parse(settings).isPremium || false)
+        // AI chat count for today
+        const today = new Date().toISOString().split("T")[0]
+        const chatData = JSON.parse(localStorage.getItem("ai_chats") || "{}")
+        setAiChatsToday(chatData[today] || 0)
       } catch (e) {}
     }
   }, [])
 
   const saveToRecentAssets = (symbol: string) => {
     const updated = [symbol, ...recentAssets.filter(a => a !== symbol)].slice(0, 20)
-    setRecentAssets(updated)
-    localStorage.setItem("recent_assets", JSON.stringify(updated))
+    setRecentAssets(updated); localStorage.setItem("recent_assets", JSON.stringify(updated))
   }
 
   const getAssetType = useCallback((symbol: string): string => {
@@ -140,13 +143,11 @@ export default function TradesPage() {
     if (!userId) return
     setLoadingAnalytics(true)
     try {
-      const saved = localStorage.getItem("user_settings")
-      const premium = saved ? JSON.parse(saved).isPremium : false
-      const res = await fetch(`/api/analytics?userId=${userId}&premium=${premium}`)
+      const res = await fetch(`/api/analytics?userId=${userId}&premium=${isPremium}`)
       const data = await res.json()
       setAnalytics(data)
     } catch (e) { console.error(e) } finally { setLoadingAnalytics(false) }
-  }, [userId])
+  }, [userId, isPremium])
 
   useEffect(() => { if (activeTab === "analytics" && userId) fetchAnalytics() }, [activeTab, userId, fetchAnalytics])
 
@@ -161,9 +162,8 @@ export default function TradesPage() {
     if (!selectedAsset) { showNotification("Select an asset first", "error"); return }
     if (!entry || !closePrice || !size) { showNotification("Fill all fields", "error"); return }
     
-    // Check free tier limit
     if (!isPremium && trades.length >= MAX_FREE_TRADES) {
-      showNotification(`Free tier limit reached (${MAX_FREE_TRADES} trades). Upgrade to Premium for unlimited trades.`, "upgrade")
+      showNotification(`Free limit reached (${MAX_FREE_TRADES} trades). Upgrade to Premium for unlimited.`, "upgrade")
       return
     }
 
@@ -175,16 +175,11 @@ export default function TradesPage() {
     const tradeData = { user_id: userId, asset: selectedAsset, direction, entry: e, close_price: c, size: fs, size_unit: sizeUnit, original_size: sz, emotion: emotion || null, pnl }
     const { error } = await supabase.from("trades").insert([tradeData])
     if (error) { showNotification(error.message, "error"); return }
-    saveToRecentAssets(selectedAsset)
-    showNotification("Trade saved!", "success")
-    setEntry(""); setClosePrice(""); setSize(""); setEmotion("")
-    fetchTrades()
+    saveToRecentAssets(selectedAsset); showNotification("Trade saved!", "success")
+    setEntry(""); setClosePrice(""); setSize(""); setEmotion(""); fetchTrades()
 
-    // Show upgrade prompt after 30 trades
-    if (!isPremium && trades.length >= 30) {
-      setTimeout(() => {
-        showNotification(`You've logged ${trades.length + 1} trades. Only ${MAX_FREE_TRADES - trades.length - 1} remaining on the free tier. Upgrade to Premium for unlimited trades and AI insights.`, "upgrade")
-      }, 1500)
+    if (!isPremium && trades.length >= 40) {
+      setTimeout(() => showNotification(`${MAX_FREE_TRADES - trades.length - 1} trades remaining. Upgrade for unlimited.`, "upgrade"), 1500)
     }
   }
 
@@ -197,6 +192,21 @@ export default function TradesPage() {
   const selectAsset = (item: SearchResult) => {
     setSelectedAsset(item.symbol); setSearch(""); setResults([])
     setEntry(""); setClosePrice("")
+  }
+
+  // Track AI chat usage
+  const trackAiChat = () => {
+    if (isPremium) return true
+    if (aiChatsToday >= MAX_FREE_AI_CHATS) {
+      showNotification(`AI chat limit reached (${MAX_FREE_AI_CHATS}/day). Upgrade for unlimited.`, "upgrade")
+      return false
+    }
+    const today = new Date().toISOString().split("T")[0]
+    const chatData = JSON.parse(localStorage.getItem("ai_chats") || "{}")
+    chatData[today] = (chatData[today] || 0) + 1
+    localStorage.setItem("ai_chats", JSON.stringify(chatData))
+    setAiChatsToday(chatData[today])
+    return true
   }
 
   if (!authChecked || pageLoading) return <AppLoader message="Loading Trading Journal" />
@@ -225,13 +235,14 @@ export default function TradesPage() {
             <h1 className="text-3xl md:text-4xl font-bold mb-2">Trading Journal</h1>
             <p className="text-zinc-400">Track, analyze & improve with AI-powered insights</p>
           </div>
-          {!isPremium && (
-            <div className="hidden md:block">
+          <div className="hidden md:flex gap-3 items-center">
+            {!isPremium && (
               <span className="bg-zinc-800 text-zinc-400 px-3 py-1 rounded-lg text-xs">
-                Free: {trades.length}/{MAX_FREE_TRADES} trades
+                Trades: {trades.length}/{MAX_FREE_TRADES} • AI: {aiChatsToday}/{MAX_FREE_AI_CHATS}
               </span>
-            </div>
-          )}
+            )}
+            {isPremium && <span className="bg-yellow-500 text-black px-3 py-1 rounded-lg text-xs font-bold">Premium</span>}
+          </div>
         </div>
 
         <div className="flex gap-4 mb-6 border-b border-zinc-800">
@@ -239,17 +250,14 @@ export default function TradesPage() {
           <button onClick={() => setActiveTab("analytics")} className={`pb-2 px-4 font-bold ${activeTab === "analytics" ? "text-yellow-500 border-b-2 border-yellow-500" : "text-zinc-400"}`}>🤖 AI Analytics</button>
         </div>
 
-        {/* ========== JOURNAL TAB ========== */}
         {activeTab === "journal" && (
           <>
             {!isPremium && trades.length >= 40 && (
               <div className="mb-4 p-4 bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-600/30 rounded-xl">
-                <p className="text-yellow-400 text-sm font-bold">⚠️ Almost at the free tier limit ({trades.length}/{MAX_FREE_TRADES})</p>
-                <p className="text-zinc-400 text-xs mt-1">Upgrade to Premium for unlimited trades and full AI analytics.</p>
-                <button onClick={() => router.push("/settings")} className="mt-2 bg-yellow-500 text-black px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-yellow-400 transition">Upgrade — $9.99/mo</button>
+                <p className="text-yellow-400 text-sm font-bold">⚠️ Almost at limit ({trades.length}/{MAX_FREE_TRADES})</p>
+                <button onClick={() => router.push("/settings")} className="mt-2 bg-yellow-500 text-black px-4 py-1.5 rounded-lg text-xs font-bold">Upgrade — $9.99/mo</button>
               </div>
             )}
-
             {selectedAsset && (
               <div className="mb-4 p-4 bg-green-900/20 border border-green-600 rounded-xl flex justify-between items-center">
                 <div><span className="text-zinc-400">Selected: </span><b className="text-white text-lg">{selectedAsset}</b></div>
@@ -328,53 +336,30 @@ export default function TradesPage() {
           </>
         )}
 
-        {/* ========== AI ANALYTICS TAB ========== */}
         {activeTab === "analytics" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">🤖 AI Analytics {isPremium ? "— Premium" : "— Free"}</h2>
-              <button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button>
-            </div>
-            
-            {loadingAnalytics ? (
-              <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Crunching your numbers...</p></div>
-            ) : analytics && analytics.totalTrades > 0 ? (
+            <div className="flex justify-between items-center"><h2 className="text-xl font-bold">🤖 AI Analytics {isPremium ? "— Premium" : "— Free"}</h2><button onClick={fetchAnalytics} className="bg-yellow-500 hover:bg-yellow-400 text-black px-4 py-2 rounded-xl text-sm font-bold">🔄 Refresh</button></div>
+            {loadingAnalytics ? <div className="text-center py-20"><div className="animate-spin text-4xl mb-4">🤖</div><p className="text-zinc-400">Crunching numbers...</p></div>
+            : analytics && analytics.totalTrades > 0 ? (
               <>
-                {/* Free Tier Teaser */}
                 {!isPremium && analytics.teasers && (
                   <div className="bg-gradient-to-r from-yellow-900/30 to-yellow-800/20 border border-yellow-500/30 p-5 rounded-2xl">
                     <h3 className="font-bold text-yellow-400 text-lg mb-2">🔒 Premium Features Locked</h3>
                     <p className="text-zinc-300 text-sm mb-3">{analytics.teasers.message}</p>
                     <div className="grid grid-cols-3 gap-3 text-center mb-4">
-                      <div className="bg-zinc-800/50 p-3 rounded-xl">
-                        <p className="text-2xl font-bold text-white">{analytics.summary.totalTrades}</p>
-                        <p className="text-xs text-zinc-500">Total Trades</p>
-                      </div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl">
-                        <p className="text-2xl font-bold text-green-400">{analytics.summary.winRate}</p>
-                        <p className="text-xs text-zinc-500">Win Rate</p>
-                      </div>
-                      <div className="bg-zinc-800/50 p-3 rounded-xl">
-                        <p className="text-2xl font-bold text-white">${analytics.summary.totalPnL}</p>
-                        <p className="text-xs text-zinc-500">Total P&L</p>
-                      </div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">{analytics.summary.totalTrades}</p><p className="text-xs text-zinc-500">Trades</p></div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-green-400">{analytics.summary.winRate}</p><p className="text-xs text-zinc-500">Win Rate</p></div>
+                      <div className="bg-zinc-800/50 p-3 rounded-xl"><p className="text-2xl font-bold text-white">${analytics.summary.totalPnL}</p><p className="text-xs text-zinc-500">P&L</p></div>
                     </div>
-                    {analytics.teasers.leakCount > 0 && (
-                      <div className="bg-red-900/20 border border-red-800/30 p-3 rounded-xl mb-3">
-                        <p className="text-red-400 text-sm font-bold">🔴 {analytics.teasers.leakCount} behavioral leak(s) detected</p>
-                        <p className="text-zinc-400 text-xs">Upgrade to see what's costing you money</p>
-                      </div>
+                    {analytics.aiScore && (
+                      <div className="text-center mb-3"><p className="text-zinc-400 text-xs">AI Score</p><p className="text-3xl font-bold text-yellow-400">{analytics.aiScore}/100</p></div>
                     )}
-                    <button onClick={() => router.push("/settings")} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-3 rounded-xl font-bold transition">
-                      Upgrade to Premium — $9.99/month
-                    </button>
+                    <button onClick={() => router.push("/settings")} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-3 rounded-xl font-bold transition">Upgrade to Premium — $9.99/month</button>
                   </div>
                 )}
 
-                {/* Premium Full Analytics */}
                 {isPremium && (
                   <>
-                    {/* AI Score */}
                     {analytics.aiScore && (
                       <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 text-center">
                         <p className="text-zinc-400 text-sm mb-2">AI Trading Score</p>
@@ -388,72 +373,19 @@ export default function TradesPage() {
                         )}
                       </div>
                     )}
-
-                    {/* Coach + Edge */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {analytics.coachSummary && (
-                        <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
-                          <p className="text-purple-300 font-bold mb-2">🥇 AI Coach</p>
-                          <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary.strongestSkill}</b></p>
-                          <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary.weakestSkill}</b></p>
-                          <p className="text-sm text-zinc-300 mt-2">🎯 {analytics.coachSummary.highestOpportunity}</p>
-                        </div>
-                      )}
-                      {analytics.edge && (
-                        <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                          <h3 className="font-bold text-yellow-400 mb-3">🏆 Edge Discovery</h3>
-                          <p className="text-sm text-zinc-300">Best Asset: <b>{analytics.edge.mostProfitableAsset}</b></p>
-                          <p className="text-sm text-zinc-300">Direction: <b>{analytics.edge.mostProfitableDirection}</b></p>
-                          <p className="text-sm text-green-400 font-bold">+${analytics.edge.mostProfitableAssetPnL}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Leak Tracker */}
-                    {analytics.leakTracker && (
-                      <div className={`p-5 rounded-2xl border ${parseFloat(analytics.leakTracker.totalLeakCost || "0") > 0 ? "bg-red-950/20 border-red-500/30" : "bg-green-950/20 border-green-500/30"}`}>
-                        <h3 className="font-bold text-lg mb-2">🔴 Leak Tracker</h3>
-                        <p className="text-sm text-zinc-300 mb-3">{analytics.leakTracker.summary}</p>
-                        {analytics.leakTracker.leaks?.map((leak: any, i: number) => (
-                          <div key={i} className="flex items-start gap-3 bg-zinc-800/50 p-3 rounded-xl mb-2">
-                            <span className="text-2xl">{leak.icon || "⚠️"}</span>
-                            <div className="flex-1">
-                              <div className="flex justify-between"><p className="font-bold text-sm">{leak.label}</p><p className="text-red-400 font-bold text-sm">-${leak.cost?.toFixed?.(2) || leak.cost}</p></div>
-                              <p className="text-xs text-zinc-400">{leak.description}</p>
-                            </div>
-                          </div>
-                        ))}
+                    {analytics.coachSummary && (
+                      <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 p-5 rounded-2xl border border-purple-500/30">
+                        <p className="text-purple-300 font-bold mb-2">🥇 AI Coach</p>
+                        <p className="text-sm text-zinc-300">Strongest: <b className="text-green-400">{analytics.coachSummary.strongestSkill}</b></p>
+                        <p className="text-sm text-zinc-300">Weakest: <b className="text-red-400">{analytics.coachSummary.weakestSkill}</b></p>
                       </div>
                     )}
-
-                    {/* Pre-Market Protocol */}
-                    {analytics.preMarketProtocol && (
-                      <div className="bg-blue-950/20 border border-blue-500/30 p-5 rounded-2xl">
-                        <h3 className="font-bold text-blue-400 mb-3">📋 Your Pre-Market Protocol</h3>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Max Position:</span><p className="font-bold text-white">{analytics.preMarketProtocol.maxPositionSize}</p></div>
-                          <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Best Setup:</span><p className="font-bold text-white">{analytics.preMarketProtocol.bestSetup}</p></div>
-                          <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Dead Zones:</span><p className="font-bold text-red-400">{analytics.preMarketProtocol.deadZones}</p></div>
-                          <div className="bg-zinc-800/50 p-3 rounded-xl"><span className="text-zinc-500">Discipline:</span><p className="font-bold text-white">{analytics.preMarketProtocol.disciplineScore}/100</p></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Motivation */}
-                    {analytics.motivation && (
-                      <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center">
-                        <p className="text-lg">{analytics.motivation}</p>
-                      </div>
-                    )}
+                    {analytics.motivation && <div className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 text-center"><p className="text-lg">{analytics.motivation}</p></div>}
                   </>
                 )}
               </>
             ) : (
-              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800">
-                <p className="text-6xl mb-4">🤖</p>
-                <p className="text-zinc-400 text-lg mb-2">{analytics?.message || "No trades yet"}</p>
-                <button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button>
-              </div>
+              <div className="text-center py-20 bg-zinc-900 rounded-2xl border border-zinc-800"><p className="text-6xl mb-4">🤖</p><p className="text-zinc-400">{analytics?.message || "No trades yet"}</p><button onClick={() => setActiveTab("journal")} className="bg-yellow-500 text-black px-6 py-3 rounded-xl font-bold">Add Your First Trade</button></div>
             )}
           </div>
         )}
@@ -463,7 +395,7 @@ export default function TradesPage() {
 
       {showEmotionModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmotionModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Emotion</h3><input type="text" placeholder="e.g., Euphoric" value={customEmotion} onChange={e => setCustomEmotion(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" autoFocus /><div className="flex gap-3"><button onClick={() => { if(!customEmotion.trim()||allEmotions.includes(customEmotion))return; const u=[...customEmotions,customEmotion]; setCustomEmotions(u); localStorage.setItem("custom_emotions",JSON.stringify(u)); setCustomEmotion(""); setShowEmotionModal(false); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowEmotionModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
 
-      <AIAssistant />
+      <AIAssistant onChatSend={trackAiChat} />
     </main>
   )
 }
