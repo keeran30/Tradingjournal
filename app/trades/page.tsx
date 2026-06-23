@@ -395,7 +395,11 @@ export default function TradesPage() {
 
       {showEmotionModal && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowEmotionModal(false)}><div className="bg-zinc-900 p-6 rounded-2xl w-96 border border-zinc-700" onClick={e => e.stopPropagation()}><h3 className="text-xl font-bold mb-4">Add Emotion</h3><input type="text" placeholder="e.g., Euphoric" value={customEmotion} onChange={e => setCustomEmotion(e.target.value)} className="w-full p-3 bg-zinc-800 rounded-xl mb-4 border border-zinc-700" autoFocus /><div className="flex gap-3"><button onClick={() => { if(!customEmotion.trim()||allEmotions.includes(customEmotion))return; const u=[...customEmotions,customEmotion]; setCustomEmotions(u); localStorage.setItem("custom_emotions",JSON.stringify(u)); setCustomEmotion(""); setShowEmotionModal(false); showNotification("Added!","success") }} className="flex-1 bg-green-600 hover:bg-green-700 py-2 rounded-xl font-bold">Add</button><button onClick={() => setShowEmotionModal(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 py-2 rounded-xl">Cancel</button></div></div></div>}
 
+<<<<<<< HEAD
       <AIAssistant/>
+=======
+      <AIAssistant />
+>>>>>>> 59aea6dd96a6f82668aacfbdda0bd2ef0e90074d
     </main>
   )
 }
