@@ -13,10 +13,7 @@ export default function ContactPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setSent(true)
-    setName("")
-    setEmail("")
-    setPhone("")
-    setMessage("")
+    setName(""); setEmail(""); setPhone(""); setMessage("")
     setTimeout(() => setSent(false), 5000)
   }
 
@@ -25,13 +22,14 @@ export default function ContactPage() {
       <Sidebar />
       <section className="flex-1 p-4 md:p-8 overflow-y-auto">
         <h1 className="text-3xl md:text-4xl font-bold mb-2">Contact Us</h1>
-        <p className="text-zinc-400 mb-8">Questions? We are here to help.</p>
+        <p className="text-zinc-400 mb-8">Have questions or feedback? We would love to hear from you.</p>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl">
           <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-            <h3 className="font-bold text-lg mb-4">Send a Message</h3>
+            <h3 className="font-bold text-lg mb-4">Send us a message</h3>
             {sent ? (
               <div className="bg-green-900/30 border border-green-500/30 p-4 rounded-xl text-green-400">
-                Message sent! We will reply within 24 hours.
+                Message sent! We will get back to you within 24 hours.
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -55,23 +53,49 @@ export default function ContactPage() {
               </form>
             )}
           </div>
+
           <div className="space-y-6">
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-              <h3 className="font-bold text-lg mb-4">Contact Info</h3>
+              <h3 className="font-bold text-lg mb-4">Contact Information</h3>
               <div className="space-y-4">
-                <div className="flex items-center gap-3">
+                <a href="mailto:support@tradevault.pro" className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group">
                   <span className="text-2xl">📧</span>
                   <div>
                     <p className="text-zinc-400 text-sm">Email</p>
-                    <p className="text-white font-medium">support@tradevault.pro</p>
+                    <p className="text-white font-medium group-hover:text-yellow-400 transition">support@tradevault.pro</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
+                </a>
+                <a href="tel:+15551234567" className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group">
                   <span className="text-2xl">📞</span>
                   <div>
                     <p className="text-zinc-400 text-sm">Phone</p>
-                    <p className="text-white font-medium">0451 406 141</p>
+                    <p className="text-white font-medium group-hover:text-yellow-400 transition">+1 (555) 123-4567</p>
                   </div>
+                </a>
+                <div className="flex items-center gap-3 p-3">
+                  <span className="text-2xl">⏰</span>
+                  <div>
+                    <p className="text-zinc-400 text-sm">Response Time</p>
+                    <p className="text-white font-medium">Within 24 hours</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+              <h3 className="font-bold text-lg mb-4">Frequently Asked</h3>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="text-white font-bold">How do I upgrade to Premium?</p>
+                  <p className="text-zinc-400">Go to Settings → Subscription and click Upgrade.</p>
+                </div>
+                <div>
+                  <p className="text-white font-bold">Can I export my trades?</p>
+                  <p className="text-zinc-400">Premium users can export in HTML, CSV, and TXT formats.</p>
+                </div>
+                <div>
+                  <p className="text-white font-bold">Is my data secure?</p>
+                  <p className="text-zinc-400">Yes, all data is encrypted and isolated per user with Row Level Security.</p>
                 </div>
               </div>
             </div>
