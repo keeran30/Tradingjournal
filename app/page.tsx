@@ -183,7 +183,7 @@ export default function LandingPage() {
       {/* Pricing Section */}
       <section id="pricing" className="max-w-4xl mx-auto px-4 py-20">
         <h2 className="text-3xl font-bold text-center mb-4">Simple Pricing</h2>
-        <p className="text-zinc-400 text-center mb-12">Start free. Upgrade when you're ready for advanced analytics.</p>
+        <p className="text-zinc-400 text-center mb-12">Start free. Upgrade when you are ready for advanced analytics.</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800">
@@ -213,7 +213,7 @@ export default function LandingPage() {
               <li>✓ Leak Tracker</li>
               <li>✓ Pre-Market Protocol</li>
               <li>✓ Edge Discovery</li>
-              <li>✓ Export (PDF, CSV)</li>
+              <li>✓ Export (HTML, CSV, TXT)</li>
               <li>✓ Unlimited AI chat</li>
               <li>✓ Priority support</li>
             </ul>
