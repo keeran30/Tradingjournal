@@ -17,6 +17,9 @@ export default function ContactPage() {
     setTimeout(() => setSent(false), 5000)
   }
 
+  const supportEmail = "support@tradevault.pro"
+  const supportPhone = "0451406141"
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
       <Sidebar />
@@ -33,22 +36,10 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-zinc-400 text-sm mb-1">Name</label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 text-sm mb-1">Email</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 text-sm mb-1">Phone (optional)</label>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-zinc-400 text-sm mb-1">Message</label>
-                  <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Tell us what is on your mind..." rows={4} className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none resize-none" required />
-                </div>
+                <div><label className="block text-zinc-400 text-sm mb-1">Name</label><input type="text" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Your name" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required /></div>
+                <div><label className="block text-zinc-400 text-sm mb-1">Email</label><input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="you@example.com" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required /></div>
+                <div><label className="block text-zinc-400 text-sm mb-1">Phone (optional)</label><input type="tel" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="+1 (555) 000-0000" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" /></div>
+                <div><label className="block text-zinc-400 text-sm mb-1">Message</label><textarea value={message} onChange={(e)=>setMessage(e.target.value)} placeholder="Tell us what is on your mind..." rows={4} className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none resize-none" required /></div>
                 <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-3 rounded-xl font-bold transition">Send Message</button>
               </form>
             )}
@@ -58,18 +49,18 @@ export default function ContactPage() {
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4">Contact Information</h3>
               <div className="space-y-4">
-                <a href="mailto:support@tradevault.pro" className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group">
+                <a href={`mailto:${supportEmail}?subject=TradeVault%20Support%20Request`} className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group cursor-pointer">
                   <span className="text-2xl">📧</span>
                   <div>
                     <p className="text-zinc-400 text-sm">Email</p>
-                    <p className="text-white font-medium group-hover:text-yellow-400 transition">support@tradevault.pro</p>
+                    <p className="text-white font-medium group-hover:text-yellow-400 transition">{supportEmail}</p>
                   </div>
                 </a>
-                <a href="tel:+15551234567" className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group">
+                <a href={`tel:${supportPhone}`} className="flex items-center gap-3 hover:bg-zinc-800 p-3 rounded-xl transition group cursor-pointer">
                   <span className="text-2xl">📞</span>
                   <div>
                     <p className="text-zinc-400 text-sm">Phone</p>
-                    <p className="text-white font-medium group-hover:text-yellow-400 transition">+1 (555) 123-4567</p>
+                    <p className="text-white font-medium group-hover:text-yellow-400 transition">{supportPhone}</p>
                   </div>
                 </a>
                 <div className="flex items-center gap-3 p-3">
@@ -85,18 +76,9 @@ export default function ContactPage() {
             <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
               <h3 className="font-bold text-lg mb-4">Frequently Asked</h3>
               <div className="space-y-3 text-sm">
-                <div>
-                  <p className="text-white font-bold">How do I upgrade to Premium?</p>
-                  <p className="text-zinc-400">Go to Settings → Subscription and click Upgrade.</p>
-                </div>
-                <div>
-                  <p className="text-white font-bold">Can I export my trades?</p>
-                  <p className="text-zinc-400">Premium users can export in HTML, CSV, and TXT formats.</p>
-                </div>
-                <div>
-                  <p className="text-white font-bold">Is my data secure?</p>
-                  <p className="text-zinc-400">Yes, all data is encrypted and isolated per user with Row Level Security.</p>
-                </div>
+                <div><p className="text-white font-bold">How do I upgrade?</p><p className="text-zinc-400">Settings → Subscription → Upgrade</p></div>
+                <div><p className="text-white font-bold">Can I export trades?</p><p className="text-zinc-400">Premium users can export in multiple formats.</p></div>
+                <div><p className="text-white font-bold">Is my data secure?</p><p className="text-zinc-400">Yes, encrypted and isolated per user.</p></div>
               </div>
             </div>
           </div>
