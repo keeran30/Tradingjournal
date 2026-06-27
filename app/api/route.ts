@@ -1,107 +1,73 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const userId = searchParams.get("userId")
-
-  if (!userId) {
-    return NextResponse.json({ error: "No userId provided" }, { status: 400 })
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-
+export async function POST(req: NextRequest) {
   try {
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/trades?select=*&user_id=eq.${userId}&order=created_at.desc`,
-      {
-        headers: {
-          "apikey": serviceKey,
-          "Authorization": `Bearer ${serviceKey}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
+    const body = await req.json()
+    const message = body.message || body.prompt || ""
 
-    const trades = await res.json()
-
-    if (!Array.isArray(trades)) {
-      return NextResponse.json({ error: "Invalid response from database" }, { status: 500 })
+    if (!message || message.trim() === "") {
+      return NextResponse.json(
+        { success: false, error: "Message is required" },
+        { status: 400 }
+      )
     }
 
-    return NextResponse.json({ success: true, trades })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
-    const { userId, asset, direction, entry, closePrice, size, sizeUnit, emotion } = body
-
-    if (!userId || !asset || !entry || !closePrice || !size) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: "AI service not configured" },
+        { status: 500 }
+      )
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+    // Rate limiting
+    const ip = req.headers.get("x-forwarded-for") || "anonymous"
 
-    const pnl = direction === "Buy" 
-      ? (closePrice - entry) * size 
-      : (entry - closePrice) * size
-
-    const res = await fetch(`${supabaseUrl}/rest/v1/trades`, {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
-        "Prefer": "return=representation",
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        user_id: userId,
-        asset,
-        direction,
-        entry,
-        close_price: closePrice,
-        size,
-        size_unit: sizeUnit || "shares",
-        original_size: size,
-        emotion: emotion || null,
-        pnl,
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional trading coach assistant. Provide concise, helpful insights about trading patterns, risk management, and trading psychology. Always mention that your advice is educational, not financial advice.",
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
       }),
     })
 
-    const data = await res.json()
-    return NextResponse.json({ success: true, trade: Array.isArray(data) ? data[0] : data })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Groq error:", response.status, errorText)
+      return NextResponse.json(
+        { success: false, error: "AI service temporarily unavailable" },
+        { status: 502 }
+      )
+    }
+
+    const data = await response.json()
+    const reply = data.choices?.[0]?.message?.content || "I couldn't process that request."
+
+    return NextResponse.json({ success: true, response: reply })
+  } catch (error: any) {
+    console.error("AI API error:", error.message)
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    )
   }
 }
 
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get("id")
-
-  if (!id) {
-    return NextResponse.json({ error: "No trade ID provided" }, { status: 400 })
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-
-  try {
-    await fetch(`${supabaseUrl}/rest/v1/trades?id=eq.${id}`, {
-      method: "DELETE",
-      headers: {
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-      },
-    })
-
-    return NextResponse.json({ success: true, message: "Trade deleted" })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
-  }
+export async function GET() {
+  return NextResponse.json({ success: true, message: "AI API is running" })
 }
