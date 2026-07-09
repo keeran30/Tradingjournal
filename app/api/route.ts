@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from "next/server"
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const message = body.message || body.prompt || ""
+
+    if (!message || message.trim() === "") {
+      return NextResponse.json(
+        { success: false, error: "Message is required" },
+        { status: 400 }
+      )
+    }
+
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) {
+      return NextResponse.json(
+        { success: false, error: "AI service not configured" },
+        { status: 500 }
+      )
+    }
+
+    // Rate limiting
+    const ip = req.headers.get("x-forwarded-for") || "anonymous"
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a professional trading coach assistant. Provide concise, helpful insights about trading patterns, risk management, and trading psychology. Always mention that your advice is educational, not financial advice.",
+          },
+          {
+            role: "user",
+            content: message,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Groq error:", response.status, errorText)
+      return NextResponse.json(
+        { success: false, error: "AI service temporarily unavailable" },
+        { status: 502 }
+      )
+    }
+
+    const data = await response.json()
+    const reply = data.choices?.[0]?.message?.content || "I couldn't process that request."
+
+    return NextResponse.json({ success: true, response: reply })
+  } catch (error: any) {
+    console.error("AI API error:", error.message)
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ success: true, message: "AI API is running" })
+}

@@ -1,0 +1,7 @@
+<div className="mt-16 max-w-4xl mx-auto">
+  <img 
+    src="/screenshot.png" 
+    alt="TradeVault Dashboard" 
+    className="rounded-xl shadow-2xl border border-zinc-700"
+  />
+</div>

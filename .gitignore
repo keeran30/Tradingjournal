@@ -1,0 +1,7 @@
+﻿.next/
+node_modules/
+*.zip
+*.bz2
+*.rar
+*.7z
+.env.local

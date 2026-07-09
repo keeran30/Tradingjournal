@@ -1,0 +1,10 @@
+[33mcommit 97d32099aff5510477c15c05b5cd4260644a6f3a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: kiran sapkota <keeransapkota0@gmail.com>
+Date:   Thu Jul 9 21:52:38 2026 +1000
+
+    Fix footer links and deploy
+
+ app.zip        | Bin [31m0[m -> [32m73956[m bytes
+ public.zip     | Bin [31m0[m -> [32m781814467[m bytes
+ public.zip.bz2 | Bin [31m0[m -> [32m90992640[m bytes
+ 3 files changed, 0 insertions(+), 0 deletions(-)
