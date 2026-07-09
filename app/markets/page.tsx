@@ -5,8 +5,17 @@ import Sidebar from "../components/Sidebar"
 import TradingViewChart from "../components/TradingViewChart"
 import { ASSETS } from "../data/assets"
 
+interface AssetType {
+  symbol: string
+  name: string
+  type: string
+  exchange?: string
+}
+
 export default function MarketsPage() {
-  const [selected, setSelected] = useState(ASSETS?.[0] ?? null)
+  const [selected, setSelected] = useState<AssetType | null>(
+    ASSETS && ASSETS.length > 0 ? ASSETS[0] : null
+  )
   const [query, setQuery] = useState("")
   const [quote, setQuote] = useState<{ price: number; changePercent: number } | null>(null)
 
@@ -15,7 +24,7 @@ export default function MarketsPage() {
     let cancelled = false
     const fetchQuote = async () => {
       try {
-        const res = await fetch(`/api/Price?symbol=${selected.symbol}`)
+        const res = await fetch(`/api/price?symbol=${selected.symbol}`)
         const data = await res.json()
         if (!cancelled) setQuote(data)
       } catch {
@@ -28,7 +37,10 @@ export default function MarketsPage() {
   }, [selected])
 
   const filtered = query
-    ? ASSETS.filter(a => a.symbol.includes(query.toUpperCase()) || a.name.toUpperCase().includes(query.toUpperCase())).slice(0, 8)
+    ? ASSETS.filter((a: AssetType) => 
+        a.symbol.toUpperCase().includes(query.toUpperCase()) || 
+        a.name.toUpperCase().includes(query.toUpperCase())
+      ).slice(0, 8)
     : []
 
   if (!selected) {
@@ -68,7 +80,7 @@ export default function MarketsPage() {
           />
           {filtered.length > 0 && (
             <div className="absolute top-full mt-1 w-full bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden z-10">
-              {filtered.map(a => (
+              {filtered.map((a: AssetType) => (
                 <button
                   key={a.symbol}
                   onClick={() => { setSelected(a); setQuery("") }}

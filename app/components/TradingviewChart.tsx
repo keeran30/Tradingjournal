@@ -21,8 +21,9 @@ function TradingViewChart({ symbol, type }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
-    containerRef.current.innerHTML = ""
+    const container = containerRef.current
+    if (!container) return
+    container.innerHTML = ""
 
     const script = document.createElement("script")
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"
@@ -40,7 +41,11 @@ function TradingViewChart({ symbol, type }: Props) {
       allow_symbol_change: false,
       support_host: "https://www.tradingview.com",
     })
-    containerRef.current.appendChild(script)
+    
+    container.appendChild(script)
+    return () => {
+      container.innerHTML = ""
+    }
   }, [symbol, type])
 
   return (
