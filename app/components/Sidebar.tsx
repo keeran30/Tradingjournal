@@ -44,6 +44,9 @@ export default function Sidebar() {
       <Link href="/dashboard" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
         📊 Dashboard
       </Link>
+      <Link href="/markets" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
+  📈 Markets
+</Link>
       <Link href="/trades" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
         💼 Trades
       </Link>
@@ -56,6 +59,7 @@ export default function Sidebar() {
       <Link href="/contact" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
         📧 Contact
       </Link>
+      
 
       <div className="mt-auto border-t border-zinc-800 pt-4 space-y-2">
         {user ? (
