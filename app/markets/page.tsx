@@ -1,59 +1,88 @@
 "use client"
 
-import { useEffect, useRef, memo } from "react"
+import { useState, useEffect } from "react"
+import Sidebar from "../components/Sidebar"
+import TradingViewChart from "../components/TradingViewChart"
+import { ASSETS } from "../data/assets"
 
-function toTradingViewSymbol(symbol: string, type: string): string {
-  const s = symbol.toUpperCase()
-  if (type === "crypto") return `BINANCE:${s.replace("USD", "USDT")}`
-  if (type === "forex") return `FX:${s}`
-  if (s === "XAUUSD") return "TVC:GOLD"
-  if (s === "XAGUSD") return "TVC:SILVER"
-  if (s === "USOIL") return "TVC:USOIL"
-  return `NASDAQ:${s}`
-}
-
-interface Props {
-  symbol: string
-  type: string
-}
-
-function TradingViewChart({ symbol, type }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null)
+export default function MarketsPage() {
+  const [selected, setSelected] = useState(ASSETS?.[0] ?? null)
+  const [query, setQuery] = useState("")
+  const [quote, setQuote] = useState<{ price: number; changePercent: number } | null>(null)
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    container.innerHTML = ""
-
-    const script = document.createElement("script")
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"
-    script.async = true
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol: toTradingViewSymbol(symbol, type),
-      interval: "15",
-      timezone: "Etc/UTC",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      backgroundColor: "rgba(9, 9, 11, 1)",
-      gridColor: "rgba(39, 39, 42, 0.5)",
-      allow_symbol_change: false,
-      support_host: "https://www.tradingview.com",
-    })
-    
-    container.appendChild(script)
-
-    return () => {
-      container.innerHTML = ""
+    if (!selected) return
+    let cancelled = false
+    const fetchQuote = async () => {
+      try {
+        const res = await fetch(`/api/Price?symbol=${selected.symbol}`)
+        const data = await res.json()
+        if (!cancelled) setQuote(data)
+      } catch {
+        if (!cancelled) setQuote(null)
+      }
     }
-  }, [symbol, type])
+    fetchQuote()
+    const interval = setInterval(fetchQuote, 10000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [selected])
+
+  const filtered = query
+    ? ASSETS.filter(a => a.symbol.includes(query.toUpperCase()) || a.name.toUpperCase().includes(query.toUpperCase())).slice(0, 8)
+    : []
+
+  if (!selected) {
+    return (
+      <div className="flex min-h-screen bg-zinc-950 text-white">
+        <Sidebar />
+        <main className="flex-1 p-8 text-zinc-500">No assets configured yet.</main>
+      </div>
+    )
+  }
 
   return (
-    <div className="tradingview-widget-container rounded-xl overflow-hidden border border-zinc-800" style={{ height: 500 }}>
-      <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
+    <div className="flex min-h-screen bg-zinc-950 text-white">
+      <Sidebar />
+      <main className="flex-1 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">{selected.symbol}</h1>
+            <p className="text-zinc-400 text-sm">{selected.name}</p>
+          </div>
+          {quote?.price != null && (
+            <div className="text-right">
+              <p className="text-3xl font-bold">${quote.price.toLocaleString()}</p>
+              <p className={quote.changePercent >= 0 ? "text-green-400" : "text-red-400"}>
+                {quote.changePercent >= 0 ? "+" : ""}{quote.changePercent?.toFixed(2) ?? "0.00"}%
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="relative mb-6 max-w-md">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search asset..."
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-2 text-sm"
+          />
+          {filtered.length > 0 && (
+            <div className="absolute top-full mt-1 w-full bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden z-10">
+              {filtered.map(a => (
+                <button
+                  key={a.symbol}
+                  onClick={() => { setSelected(a); setQuery("") }}
+                  className="w-full text-left px-4 py-2 hover:bg-zinc-800 text-sm"
+                >
+                  {a.symbol} — {a.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <TradingViewChart symbol={selected.symbol} type={selected.type} />
+      </main>
     </div>
   )
 }
-
-export default memo(TradingViewChart)
