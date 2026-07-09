@@ -1,4 +1,3 @@
-// app/markets/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,25 +5,38 @@ import Sidebar from "../components/Sidebar"
 import TradingViewChart from "../components/TradingViewChart"
 import { ASSETS } from "../data/assets"
 
+interface AssetType {
+  symbol: string
+  name: string
+  type: string
+  exchange?: string
+}
+
 export default function MarketsPage() {
-  const [selected, setSelected] = useState(ASSETS[0])
+  const [selected, setSelected] = useState<AssetType>(ASSETS[0])
   const [query, setQuery] = useState("")
   const [quote, setQuote] = useState<{ price: number; changePercent: number } | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const fetchQuote = async () => {
-      const res = await fetch(`/api/Price?symbol=${selected.symbol}`)
-      const data = await res.json()
-      if (!cancelled) setQuote(data)
+      try {
+        const res = await fetch(`/api/price?symbol=${selected.symbol}`)
+        const data = await res.json()
+        if (!cancelled && data.price) {
+          setQuote(data)
+        }
+      } catch (e) {
+        console.error("Failed to fetch quote:", e)
+      }
     }
     fetchQuote()
-    const interval = setInterval(fetchQuote, 10000) // refresh every 10s
+    const interval = setInterval(fetchQuote, 10000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [selected])
 
   const filtered = query
-    ? ASSETS.filter(a => a.symbol.includes(query.toUpperCase()) || a.name.toUpperCase().includes(query.toUpperCase())).slice(0, 8)
+    ? ASSETS.filter(a => a.symbol.toUpperCase().includes(query.toUpperCase()) || a.name.toUpperCase().includes(query.toUpperCase())).slice(0, 8)
     : []
 
   return (

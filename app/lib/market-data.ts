@@ -1,5 +1,4 @@
 // app/lib/market-data.ts
-// Central place for all live market data. Swap providers here without touching routes/components.
 
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY
 
@@ -8,25 +7,29 @@ export interface LiveQuote {
   price: number
   change: number
   changePercent: number
-  source: "finnhub" | "binance" | "fallback"
+  source: string
 }
 
-// ---- STOCKS (Finnhub — free tier covers US equities well) ----
 async function getStockQuote(symbol: string): Promise<LiveQuote | null> {
   if (!FINNHUB_KEY) return null
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    
     const res = await fetch(
       `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${FINNHUB_KEY}`,
-      { signal: AbortSignal.timeout(4000), next: { revalidate: 5 } }
+      { signal: controller.signal }
     )
+    clearTimeout(timeout)
+    
     if (!res.ok) return null
     const data = await res.json()
-    if (!data.c) return null // c = current price
+    if (!data.c) return null
     return {
       symbol,
       price: data.c,
-      change: data.d,
-      changePercent: data.dp,
+      change: data.d || 0,
+      changePercent: data.dp || 0,
       source: "finnhub",
     }
   } catch {
@@ -34,23 +37,26 @@ async function getStockQuote(symbol: string): Promise<LiveQuote | null> {
   }
 }
 
-// ---- CRYPTO (Binance public API — free, no key, genuinely real-time) ----
 async function getCryptoQuote(symbol: string): Promise<LiveQuote | null> {
-  // expects symbols like BTCUSD -> BTCUSDT on Binance
   const binanceSymbol = symbol.replace(/USD$/, "USDT")
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    
     const res = await fetch(
       `https://api.binance.com/api/v3/ticker/24hr?symbol=${binanceSymbol}`,
-      { signal: AbortSignal.timeout(4000), next: { revalidate: 5 } }
+      { signal: controller.signal }
     )
+    clearTimeout(timeout)
+    
     if (!res.ok) return null
     const data = await res.json()
     if (!data.lastPrice) return null
     return {
       symbol,
       price: parseFloat(data.lastPrice),
-      change: parseFloat(data.priceChange),
-      changePercent: parseFloat(data.priceChangePercent),
+      change: parseFloat(data.priceChange || "0"),
+      changePercent: parseFloat(data.priceChangePercent || "0"),
       source: "binance",
     }
   } catch {
@@ -58,16 +64,20 @@ async function getCryptoQuote(symbol: string): Promise<LiveQuote | null> {
   }
 }
 
-// ---- FOREX (Finnhub forex rates — free tier) ----
 async function getForexQuote(symbol: string): Promise<LiveQuote | null> {
   if (!FINNHUB_KEY) return null
   const base = symbol.slice(0, 3)
   const quote = symbol.slice(3, 6)
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 4000)
+    
     const res = await fetch(
       `https://finnhub.io/api/v1/forex/rates?base=${base}&token=${FINNHUB_KEY}`,
-      { signal: AbortSignal.timeout(4000), next: { revalidate: 30 } }
+      { signal: controller.signal }
     )
+    clearTimeout(timeout)
+    
     if (!res.ok) return null
     const data = await res.json()
     const price = data?.quote?.[quote]
@@ -86,7 +96,4 @@ export async function getLiveQuote(symbol: string): Promise<LiveQuote | null> {
   if (CRYPTO_SYMBOLS.has(upper)) return getCryptoQuote(upper)
   if (FOREX_SYMBOLS.has(upper)) return getForexQuote(upper)
   return getStockQuote(upper)
-  // Note: gold (XAUUSD), oil, and futures need a paid feed (Finnhub's commodity
-  // data is behind their paid tier). Flagging this honestly rather than faking
-  // coverage — see the note at the end of this response for options there.
 }
