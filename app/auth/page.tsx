@@ -25,18 +25,20 @@ export default function AuthPage() {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) { router.push("/dashboard") }
+      if (user) {
+        router.replace("/dashboard")
+        return
+      }
       setCheckingAuth(false)
     }
     checkUser()
   }, [router])
 
-  // Block timer countdown
   useEffect(() => {
     if (blocked && blockTimer > 0) {
       const timer = setInterval(() => {
         setBlockTimer(prev => {
-          if (prev <= 1) { setBlocked(false); return 0 }
+          if (prev <= 1) { setBlocked(false); setAttemptsLeft(5); return 0 }
           return prev - 1
         })
       }, 1000)
@@ -48,7 +50,7 @@ export default function AuthPage() {
     e.preventDefault()
     
     if (blocked) {
-      setError(`Too many attempts. Please wait ${Math.ceil(blockTimer / 60)} minutes.`)
+      setError(`Too many attempts. Please wait ${Math.ceil(blockTimer / 60)} minute${Math.ceil(blockTimer / 60) > 1 ? "s" : ""}.`)
       return
     }
 
@@ -58,9 +60,13 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        const result = await supabase.auth.signUp({ email, password })
+        const result = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/dashboard` }
+        })
         if (result.error) throw result.error
-        setMessage("Account created! Please check your email to verify your account.")
+        setMessage("Account created! Please check your email to verify your account before logging in.")
         setAttemptsLeft(5)
       } else {
         const result = await supabase.auth.signInWithPassword({ email, password })
@@ -70,8 +76,12 @@ export default function AuthPage() {
           
           if (newAttempts <= 0) {
             setBlocked(true)
-            setBlockTimer(900) // 15 minutes
+            setBlockTimer(900)
             throw new Error("Too many failed attempts. Account locked for 15 minutes.")
+          }
+          
+          if (result.error.message.includes("Email not confirmed")) {
+            throw new Error("Please verify your email before logging in. Check your inbox.")
           }
           throw result.error
         }
@@ -87,6 +97,7 @@ export default function AuthPage() {
   }
 
   const handleGoogleLogin = async () => {
+    if (blocked) return
     const result = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/dashboard` },
@@ -96,8 +107,11 @@ export default function AuthPage() {
 
   if (checkingAuth) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
-        <p className="text-zinc-400">Loading...</p>
+      <main className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin w-10 h-10 border-2 border-yellow-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-zinc-500 text-sm">Loading TradeVault...</p>
+        </div>
       </main>
     )
   }
@@ -127,35 +141,64 @@ export default function AuthPage() {
           )}
           {!blocked && attemptsLeft < 5 && attemptsLeft > 0 && (
             <div className="bg-yellow-900/30 border border-yellow-500/30 text-yellow-400 p-3 rounded-xl mb-4 text-xs">
-              {attemptsLeft} login attempt{attemptsLeft > 1 ? "s" : ""} remaining
+              ⚠️ {attemptsLeft} login attempt{attemptsLeft > 1 ? "s" : ""} remaining before lockout
             </div>
           )}
           {blocked && (
             <div className="bg-red-900/30 border border-red-500/30 text-red-400 p-4 rounded-xl mb-4 text-sm">
-              Account temporarily locked. Please wait {Math.ceil(blockTimer / 60)} minute{Math.ceil(blockTimer / 60) > 1 ? "s" : ""}.
+              🔒 Account temporarily locked. Please wait {Math.ceil(blockTimer / 60)} minute{Math.ceil(blockTimer / 60) > 1 ? "s" : ""}.
             </div>
           )}
 
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
               <label className="block text-zinc-400 text-sm mb-1">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required disabled={blocked} />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors"
+                required
+                disabled={blocked}
+              />
             </div>
             <div>
               <label className="block text-zinc-400 text-sm mb-1">Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none" required disabled={blocked} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 focus:border-yellow-500 outline-none transition-colors"
+                required
+                disabled={blocked}
+                minLength={8}
+              />
             </div>
-            <button type="submit" disabled={loading || blocked} className="w-full bg-yellow-500 hover:bg-yellow-600 text-black py-3 rounded-xl font-bold transition disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={loading || blocked}
+              className="w-full bg-yellow-500 hover:bg-yellow-600 text-black py-3 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {loading ? "Please wait..." : isSignUp ? "Create Account" : "Sign In"}
             </button>
           </form>
 
           <div className="mt-4">
             <div className="relative mb-4">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-700"></div></div>
-              <div className="relative flex justify-center text-sm"><span className="px-4 bg-zinc-900 text-zinc-400">or</span></div>
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-zinc-700"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-zinc-900 text-zinc-400">or</span>
+              </div>
             </div>
-            <button onClick={handleGoogleLogin} className="w-full bg-white hover:bg-gray-100 text-black py-3 rounded-xl font-bold transition flex items-center justify-center gap-2">
+            <button
+              onClick={handleGoogleLogin}
+              disabled={blocked}
+              className="w-full bg-white hover:bg-gray-100 text-black py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
               🚀 Continue with Google
             </button>
           </div>
@@ -163,15 +206,30 @@ export default function AuthPage() {
 
         <p className="text-center text-zinc-400 mt-6">
           {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button onClick={() => { setIsSignUp(!isSignUp); setError(""); setMessage(""); setAttemptsLeft(5); setBlocked(false) }} className="text-yellow-500 hover:text-yellow-400 font-bold transition">
+          <button
+            onClick={() => {
+              setIsSignUp(!isSignUp)
+              setError("")
+              setMessage("")
+              setAttemptsLeft(5)
+              setBlocked(false)
+            }}
+            className="text-yellow-500 hover:text-yellow-400 font-bold transition"
+          >
             {isSignUp ? "Sign In" : "Sign Up"}
           </button>
         </p>
-        <p className="text-center mt-4">
-          <a href="/auth/reset" className="text-zinc-500 hover:text-zinc-300 text-sm transition">Forgot password?</a>
-        </p>
-        <p className="text-center mt-2">
-          <a href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition">← Back to home</a>
+        {!isSignUp && (
+          <p className="text-center mt-3">
+            <a href="/auth/reset" className="text-zinc-500 hover:text-zinc-300 text-sm transition">
+              Forgot your password?
+            </a>
+          </p>
+        )}
+        <p className="text-center mt-3">
+          <a href="/" className="text-zinc-500 hover:text-zinc-300 text-sm transition">
+            ← Back to home
+          </a>
         </p>
       </div>
     </main>
