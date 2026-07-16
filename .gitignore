@@ -1,7 +1,59 @@
-﻿.next/
+﻿# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# Environment (CRITICAL - never commit these)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Secrets
+*.pem
+*.key
+*.secret
+*.private
+credentials.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archives
 *.zip
 *.bz2
 *.rar
 *.7z
-.env.local
+*.tar
+*.gz
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+tmp/
+temp/
