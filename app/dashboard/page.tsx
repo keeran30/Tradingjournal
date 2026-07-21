@@ -4,50 +4,47 @@ import { useState, useEffect } from "react"
 import Sidebar from "../components/Sidebar"
 import AIAssistant from "../components/AIAssistant"
 import { supabase } from "../lib/supabase"
-import AppLoader from "../components/AppLoader"
-
-interface Trade {
-  id: string; pnl: number; asset: string; direction: string; emotion: string | null; created_at: string
-}
 
 export default function DashboardPage() {
-  const [trades, setTrades] = useState<Trade[]>([])
+  const [trades, setTrades] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        window.location.href = "/auth"
-        return
-      }
-      fetchTrades(session.user.id)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) window.location.href = "/auth"
+      else loadTrades(user.id)
     })
   }, [])
 
-  const fetchTrades = async (uid: string) => {
-    const { data, error } = await supabase.from("trades").select("*").eq("user_id", uid).order("created_at", { ascending: false })
-    if (error) setTrades([])
-    else setTrades(data || [])
+  const loadTrades = async (uid: string) => {
+    const { data } = await supabase.from("trades").select("*").eq("user_id", uid).order("created_at", { ascending: false })
+    setTrades(data || [])
     setLoading(false)
   }
 
-  if (loading) return <AppLoader message="Loading Dashboard" />
+  if (loading) return <main className="min-h-screen bg-zinc-950"></main>
 
-  const totalTrades = trades.length
-  const winningTrades = trades.filter((t) => t.pnl > 0).length
-  const winRate = totalTrades > 0 ? ((winningTrades / totalTrades) * 100).toFixed(1) : "0"
-  const totalPnL = trades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+  const wins = trades.filter(t => t.pnl > 0).length
+  const pnl = trades.reduce((s, t) => s + (t.pnl || 0), 0)
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white flex flex-col md:flex-row">
+    <main className="min-h-screen bg-zinc-950 text-white flex">
       <Sidebar />
-      <section className="flex-1 p-8 overflow-y-auto">
-        <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-        <p className="text-zinc-400 mb-10">Trading performance overview.</p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><h2 className="text-zinc-400 text-sm mb-2">Total Trades</h2><p className="text-4xl font-bold">{totalTrades}</p></div>
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><h2 className="text-zinc-400 text-sm mb-2">Win Rate</h2><p className={`text-4xl font-bold ${parseFloat(winRate) >= 50 ? "text-green-400" : "text-red-400"}`}>{winRate}%</p></div>
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800"><h2 className="text-zinc-400 text-sm mb-2">Total P&L</h2><p className={`text-4xl font-bold ${totalPnL >= 0 ? "text-green-400" : "text-red-400"}`}>${totalPnL.toFixed(2)}</p></div>
+      <section className="flex-1 p-8">
+        <h1 className="text-4xl font-bold mb-8">Dashboard</h1>
+        <div className="grid grid-cols-3 gap-6">
+          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+            <p className="text-zinc-400 text-sm">Total Trades</p>
+            <p className="text-4xl font-bold">{trades.length}</p>
+          </div>
+          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+            <p className="text-zinc-400 text-sm">Win Rate</p>
+            <p className="text-4xl font-bold text-green-400">{trades.length > 0 ? ((wins/trades.length)*100).toFixed(1) : 0}%</p>
+          </div>
+          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+            <p className="text-zinc-400 text-sm">Total P&L</p>
+            <p className={`text-4xl font-bold ${pnl >= 0 ? "text-green-400" : "text-red-400"}`}>${pnl.toFixed(2)}</p>
+          </div>
         </div>
       </section>
       <AIAssistant />
