@@ -56,6 +56,9 @@ export default function Sidebar() {
       <Link href="/settings" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
         ⚙️ Settings
       </Link>
+      <Link href="/about" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
+  ℹ️ About
+</Link>
       <Link href="/contact" className="text-zinc-300 hover:text-white transition flex items-center gap-2">
         📧 Contact
       </Link>

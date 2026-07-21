@@ -251,6 +251,7 @@ export default function LandingPage() {
           <Link href="/auth" className="hover:text-zinc-300 transition">Sign In</Link>
         </div>
         <p>© 2026 TradeVault. Built for traders.</p>
+        <a href="/about" className="hover:text-zinc-300 transition">About</a>
       </footer>
     </main>
   )
