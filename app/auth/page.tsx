@@ -1,50 +1,173 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-)
+import { useRouter } from "next/navigation"
+import { supabase } from "../lib/supabase"
 
 export default function AuthPage() {
+  const router = useRouter()
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const validateForm = () => {
+    if (!email.trim()) {
+      setMessage("Please enter your email address.")
+      return false
+    }
+
+    if (!password) {
+      setMessage("Please enter your password.")
+      return false
+    }
+
+    if (password.length < 6) {
+      setMessage("Password must be at least 6 characters.")
+      return false
+    }
+
+    return true
+  }
 
   const signUp = async () => {
-    setMessage("Signing up...")
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) setMessage("Error: " + error.message)
-    else {
-      setMessage("User created! Now signing in...")
-      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password })
-      if (loginError) setMessage("Login error: " + loginError.message)
-      else if (loginData.session) window.location.href = "/dashboard"
-      else setMessage("No session: " + JSON.stringify(loginData))
+    if (!validateForm()) return
+
+    setLoading(true)
+    setMessage("Creating your account...")
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        setMessage(`Sign-up error: ${error.message}`)
+        return
+      }
+
+      if (data.session) {
+        setMessage("Account created successfully.")
+        router.replace("/dashboard")
+        router.refresh()
+        return
+      }
+
+      setMessage(
+        "Account created. Please check your email and confirm your account."
+      )
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Unexpected error: ${error.message}`
+          : "An unexpected error occurred."
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
   const signIn = async () => {
+    if (!validateForm()) return
+
+    setLoading(true)
     setMessage("Signing in...")
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setMessage("Error: " + error.message)
-    else if (data.session) window.location.href = "/dashboard"
-    else setMessage("No session: " + JSON.stringify(data))
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+
+      if (error) {
+        setMessage(`Sign-in error: ${error.message}`)
+        return
+      }
+
+      if (!data.session) {
+        setMessage("Sign-in succeeded, but no session was created.")
+        return
+      }
+
+      setMessage("Signed in successfully.")
+      router.replace("/dashboard")
+      router.refresh()
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Unexpected error: ${error.message}`
+          : "An unexpected error occurred."
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-center mb-2">TradeVault</h1>
-        <p className="text-zinc-400 text-center mb-8">Sign in or create account</p>
+        <h1 className="text-4xl font-bold text-center mb-2">
+          TradeVault
+        </h1>
+
+        <p className="text-zinc-400 text-center mb-8">
+          Sign in or create an account
+        </p>
+
         <div className="bg-zinc-900 p-8 rounded-2xl border border-zinc-800 space-y-4">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700" />
-          <button onClick={signUp} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold">Sign Up</button>
-          <button onClick={signIn} className="w-full bg-yellow-500 text-black py-3 rounded-xl font-bold">Sign In</button>
-          {message && <p className="text-yellow-400 text-xs bg-yellow-900/20 p-3 rounded-lg">{message}</p>}
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Email address"
+            autoComplete="email"
+            disabled={loading}
+            className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 outline-none focus:border-yellow-500 disabled:opacity-50"
+          />
+
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Password"
+            autoComplete="current-password"
+            disabled={loading}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !loading) {
+                void signIn()
+              }
+            }}
+            className="w-full p-3 bg-zinc-800 rounded-xl border border-zinc-700 outline-none focus:border-yellow-500 disabled:opacity-50"
+          />
+
+          <button
+            type="button"
+            onClick={() => void signUp()}
+            disabled={loading}
+            className="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Please wait..." : "Sign Up"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void signIn()}
+            disabled={loading}
+            className="w-full bg-yellow-500 hover:bg-yellow-400 text-black py-3 rounded-xl font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Please wait..." : "Sign In"}
+          </button>
+
+          {message && (
+            <p className="text-yellow-300 text-sm bg-yellow-900/20 border border-yellow-900/40 p-3 rounded-lg">
+              {message}
+            </p>
+          )}
         </div>
       </div>
     </main>
